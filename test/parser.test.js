@@ -308,3 +308,22 @@ test('blames a failed challenge on the player involved in the action right befor
     ['Zen', false, null],
   ]);
 });
+
+test("credits summons' damage to their summoner (Sadida dolls, placed summons)", () => {
+  const t = new FightTracker();
+  [
+    C('10:00:00', 'Yami lance le sort La Sacrifiée'),
+    C('10:00:01', 'Yami: Invoque un(e) La Sacrifiée '),
+    C('10:00:02', 'La Sacrifiée lance le sort Bistoufly'),
+    C('10:00:03', 'Boss: -2 703 PV (Air)'),
+    C('10:00:04', 'Hap lance le sort Microbot'),
+    C('10:00:05', 'Hap: Pose un(e) Microbot'),
+    C('10:00:06', 'Microbot lance le sort Décharge'),
+    C('10:00:07', 'Boss: -500 PV (Feu)'),
+  ].forEach((l) => t.feed(l));
+  const by = Object.fromEntries(t.snapshot().fighters.map((f) => [f.name, f.damage]));
+  assert.strictEqual(by.Yami, 2703);
+  assert.strictEqual(by.Hap, 500);
+  assert.strictEqual(by['La Sacrifiée'], undefined);
+  assert.strictEqual(by.Microbot, undefined);
+});

@@ -23,7 +23,8 @@ const { detectClass } = require('./classes');
 const LINE = /^(\d\d):(\d\d):(\d\d),\d+ - \[Information \(combat\)\] (.*)$/;
 const GROUP = /^\d\d:\d\d:\d\d,\d+ - \[Groupe\] (.+?) : /;
 const CAST = /^(.+?) lance le sort (.+?)(?: \(Critiques\))?$/;
-const SUMMON = /^(.+?): Invoque un\(e\) (.+?)\s*$/;
+// Summons, including placed ones ("Pose un(e) Microbot" for the Steamer).
+const SUMMON = /^(.+?): (?:Invoque|Pose) un\(e\) (.+?)\s*$/;
 const HP = /^(.+?): ([+-])([\d\s]+) PV\s*(.*)$/;
 const ARMOR = /^(.+?): ([\d\s]+) Armure\s*(.*)$/;
 const STATE = /^(.+?): (.+?) \((?:Niv\. \d+|[+-]\d+ Niv\.)\)/;
