@@ -29,7 +29,7 @@ L'application regroupe plusieurs modules, choisis par les icônes à gauche de l
 |---|---|
 | ⚔ Combat | Dégâts infligés et reçus, soins, armure par joueur (détails ci-dessous) |
 | 📊 Session | Depuis le lancement : durée, combats, XP, kamas gagnés/perdus, objets ramassés, challenges — avec les moyennes par heure |
-| 🎯 Challenges | Taux de réussite global et par challenge, conservé d'une session à l'autre |
+| 🎯 Challenges | Taux de réussite global et par challenge, conservé d'une session à l'autre, avec qui a raté (déduit de l'action précédant l'échec) |
 | 🏆 Honneur | Plus gros coup, plus de dégâts, meilleur DPT, plus de soins, d'armure, plus encaissé, plus de KO (combats depuis le lancement) |
 
 Option dans l'aide (`?`) : **Lancer automatiquement avec Wakfu** — l'application démarre avec Windows en arrière-plan,
@@ -62,7 +62,9 @@ Raccourcis, utilisables même quand le jeu a le focus :
 Bon à savoir :
 - Une carte par membre du groupe, présente dès le début du combat (grisée tant que le joueur n'a rien fait, grisée avec
   « KO » quand il est KO). Une carte s'illumine brièvement lors d'un gros coup.
-- La classe est devinée d'après les sorts lancés ; si elle est fausse, clique sur la carte puis sur le nom de la classe.
+- La classe et les joueurs du combat viennent du journal technique du jeu (`wakfu.log`) quand il est disponible, sinon
+  la classe est devinée d'après les sorts lancés ; si elle est fausse, clique sur la carte puis sur le nom de la classe.
+- Les dégâts des invocations (bombes, balises, poupées, créatures du Gobgob, tourelle…) sont comptés pour leur invocateur.
   Les portraits viennent de ta propre installation de Wakfu (initiales si le jeu n'est pas à l'emplacement par défaut).
 - Le log ne dit pas qui frappe : l'auteur des dégâts est déduit (voir plus bas). Les chiffres sont fiables pour les
   joueurs, mais les dégâts dont l'auteur est introuvable (glyphes et poisons de monstres) ne sont pas comptés.
