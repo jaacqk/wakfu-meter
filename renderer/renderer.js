@@ -89,6 +89,32 @@ function slots(view) {
 const lastBigHits = new Map(); // name -> bigHits already flashed (live fight)
 let liveStart = null;
 
+// The log only gives a time when something happens (spell, damage...), so a
+// quiet turn would freeze the timer. Instead the timer runs on the PC clock
+// from the fight's start, and only moves forward to catch up with the log.
+// It stops after MAX_QUIET seconds without a line, so a fight left unfinished
+// in the log doesn't count forever.
+const MAX_QUIET = 120;
+let clock = { start: null, duration: 0, origin: 0, changed: 0 };
+function liveDuration(view, live) {
+  if (!live) return view.duration;
+  const now = Date.now();
+  if (clock.start !== view.start) {
+    clock = { start: view.start, duration: view.duration, origin: now - view.duration * 1000, changed: now };
+  } else if (clock.duration !== view.duration) {
+    clock.duration = view.duration;
+    clock.changed = now;
+    clock.origin = Math.min(clock.origin, now - view.duration * 1000); // behind the log: catch up
+  }
+  const elapsed = Math.floor((Math.min(now, clock.changed + MAX_QUIET * 1000) - clock.origin) / 1000);
+  return Math.max(view.duration, elapsed);
+}
+// Ticks often so the display changes right on each second.
+setInterval(() => {
+  const view = shown();
+  if (!cumulOn && view && !view.ended) state.textContent = duration(liveDuration(view, true));
+}, 200);
+
 function card({ name, f, value }, rank, max, total, live) {
   const pct = total ? Math.round((value / total) * 100) : 0;
   const perTurn = stat === 'damage' ? dpt(f) : null;
@@ -179,7 +205,7 @@ function render() {
   const max = list.length ? list[0].value : 0;
 
   state.className = live ? 'live' : '';
-  state.textContent = view ? (cumulOn ? `${view.fights}× · ${duration(view.duration)}` : duration(view.duration)) : '';
+  state.textContent = view ? (cumulOn ? `${view.fights}× · ${duration(view.duration)}` : duration(liveDuration(view, live))) : '';
   state.title = view
     ? `${cumulOn ? `Cumul de ${view.fights} combat(s)` : view.ended ? 'Combat terminé' : 'En combat'} · total ${fmt.format(total)}`
     : '';
