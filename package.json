@@ -11,7 +11,7 @@
     "start": "electron .",
     "test": "node --test test/",
     "dist": "electron-builder --win --publish never",
-    "release": "electron-builder --win --publish always"
+    "release": "node scripts/release.js"
   },
   "dependencies": {
     "electron-updater": "^6.8.11"
