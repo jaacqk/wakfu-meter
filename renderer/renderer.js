@@ -192,7 +192,23 @@ function render() {
   showSections();
   if (!combat && !panelFor) renderModule();
   if (panelFor) renderPanel();
+  placeSideIcons(combat && !panelFor);
   fitWindow();
+}
+
+// Side bar icons: centred on the damage cards, then kept at that same spot
+// in the other (taller) views so they never move.
+let sideIconsTop = 4;
+function placeSideIcons(centre) {
+  const bar = $('modules');
+  if (centre) {
+    bar.style.justifyContent = 'center';
+    bar.style.paddingTop = '';
+    sideIconsTop = bar.querySelector('button').offsetTop;
+  } else {
+    bar.style.justifyContent = 'flex-start';
+    bar.style.paddingTop = `${sideIconsTop}px`;
+  }
 }
 
 // Shows the cards, a module view or a panel (only one at a time).
@@ -211,6 +227,7 @@ function openPanel(kind, name) {
   panelFor = { kind, name };
   showSections();
   renderPanel();
+  placeSideIcons(false);
   fitWindow();
   updateMouse();
 }
@@ -218,6 +235,7 @@ function closePanel() {
   panelFor = null;
   showSections();
   if (module !== 'combat') renderModule();
+  placeSideIcons(module === 'combat');
   fitWindow();
   updateMouse();
 }
