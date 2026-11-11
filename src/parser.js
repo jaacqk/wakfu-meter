@@ -71,6 +71,15 @@ function sourceTag(tail) {
   return null;
 }
 
+// Element of a hit/heal from "(Feu) (Bombe collante)" -> "feu", if any.
+function elementOf(tail) {
+  for (const m of tail.matchAll(/\(([^()]*)\)/g)) {
+    const e = m[1].trim().toLowerCase().split(' - ')[0];
+    if (ELEMENTS.has(e)) return e;
+  }
+  return null;
+}
+
 class FightTracker {
   constructor() {
     this.fight = null;
@@ -205,13 +214,14 @@ class FightTracker {
   }
 
   // Adds to a fighter's total and, if known, to the effect that did it.
-  add(name, stat, value, label) {
+  add(name, stat, value, label, element = null) {
     const f = this.fighter(name);
     f[stat] += value;
     if (!label) return f;
     const key = norm(label);
     let e = f.bySpell.get(key);
-    if (!e) f.bySpell.set(key, (e = { name: label.replace(/\s+[IVX]+$/, ''), damage: 0, taken: 0, heal: 0, armor: 0 }));
+    if (!e) f.bySpell.set(key, (e = { name: label.replace(/\s+[IVX]+$/, ''), element, damage: 0, taken: 0, heal: 0, armor: 0 }));
+    e.element ||= element;
     e[stat] += value;
     return f;
   }
@@ -407,14 +417,15 @@ class FightTracker {
     // The player who hit, else the player hit (even by an unknown author).
     if (hit) this.noteEvent(ms, who, victim);
     const label = sourceTag(tail) || this.castSpell;
+    const element = elementOf(tail);
     // Damage taken counts even when its author is unknown, but not self-inflicted.
-    if (hit && victim === target && who !== victim) this.add(victim, 'taken', parseNumber(hp[3]), label);
+    if (hit && victim === target && who !== victim) this.add(victim, 'taken', parseNumber(hp[3]), label, element);
     if (!who) return hit;
     if (hit) {
       if (who === victim) return true; // self-damage / counters
       const n = parseNumber(hp[3]);
       this.relate(who, victim, 'hit', n);
-      const f = this.add(who, 'damage', n, label);
+      const f = this.add(who, 'damage', n, label, element);
       // A big hit: well above this fighter's average so far.
       if (f.hits >= 3 && n >= 1000 && n >= 2.5 * (f.hitSum / f.hits)) f.bigHits++;
       f.hits++;
@@ -427,7 +438,7 @@ class FightTracker {
       const n = parseNumber(hp ? hp[3] : armor[2]);
       if (who !== victim) this.relate(who, victim, 'help', n);
       this.noteEvent(ms, who, victim);
-      this.add(who, hp ? 'heal' : 'armor', n, label);
+      this.add(who, hp ? 'heal' : 'armor', n, label, hp ? element : null);
     }
     return true;
   }
@@ -544,7 +555,7 @@ class FightTracker {
         c.breed ||= f.breed;
         for (const e of f.bySpell) {
           const key = norm(e.name);
-          const m = c.spellMap.get(key) || c.spellMap.set(key, { name: e.name, damage: 0, taken: 0, heal: 0, armor: 0 }).get(key);
+          const m = c.spellMap.get(key) || c.spellMap.set(key, { name: e.name, element: e.element, damage: 0, taken: 0, heal: 0, armor: 0 }).get(key);
           for (const k of ['damage', 'taken', 'heal', 'armor']) m[k] += e[k];
         }
       }

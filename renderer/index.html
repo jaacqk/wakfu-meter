@@ -9,40 +9,45 @@
 <body>
   <div id="app">
     <nav id="modules">
-      <button data-module="combat" class="active" title="Combat : dégâts, soins, armure">⚔</button>
-      <button data-module="session" title="Bilan de session">📊</button>
-      <button data-module="challenges" title="Suivi des challenges">🎯</button>
-      <button data-module="honour" title="Tableau d'honneur">🏆</button>
+      <span class="emblem" data-art="EMBLEM"></span>
+      <button data-module="combat" data-icon="combat" class="active" title="Combat : dégâts, soins, armure"></button>
+      <button data-module="session" data-icon="session" title="Bilan de session"></button>
+      <button data-module="challenges" data-icon="challenges" title="Suivi des challenges"></button>
+      <button data-module="honour" data-icon="honour" title="Tableau d'honneur"></button>
     </nav>
     <div id="content">
-    <header>
-      <span id="module-title" hidden></span>
-      <nav id="tabs">
-        <button data-stat="damage" class="active">Infligés</button>
-        <button data-stat="taken">Reçus</button>
-        <button data-stat="heal">Soins</button>
-        <button data-stat="armor">Armure</button>
-      </nav>
-      <button id="cumul" title="Cumul des combats (donjon)">Σ</button>
-      <span id="state"></span>
-      <button id="unhide" title="Réafficher les combattants masqués" hidden></button>
-      <button id="copy" title="Copier le récapitulatif">📋</button>
-      <button id="through" title="Clics traversants (Ctrl+Alt+C)">🖱</button>
-      <button id="layout" title="Basculer horizontal / vertical">⇅</button>
-      <button id="mode" title="Basculer transparent / normal">◐</button>
-      <button id="reset" title="Remettre à zéro (Ctrl+Alt+R)">↺</button>
-      <button id="help" title="Aide et fonctionnalités">?</button>
-      <button id="close" title="Fermer">✕</button>
-    </header>
-    <main>
-      <ol id="cards"></ol>
-      <p id="empty">En attente d'un combat…</p>
-    </main>
-    <section id="view" hidden></section>
-    <section id="panel" hidden></section>
+      <header>
+        <span class="scenery" data-art="SCENERY"></span>
+        <span id="module-title" hidden></span>
+        <nav id="tabs">
+          <button data-stat="damage" class="active">Infligés</button>
+          <button data-stat="taken">Reçus</button>
+          <button data-stat="heal">Soins</button>
+          <button data-stat="armor">Armure</button>
+        </nav>
+        <button id="cumul" title="Cumul des combats (donjon)">Σ</button>
+        <span id="state"></span>
+        <button id="unhide" title="Réafficher les combattants masqués" hidden></button>
+        <button id="copy" data-icon="clipboard" title="Copier le récapitulatif"></button>
+        <button id="through" data-icon="lock" title="Clics traversants (Ctrl+Alt+C)"></button>
+        <button id="layout" title="Basculer horizontal / vertical">⇅</button>
+        <button id="mode" title="Basculer transparent / normal">◐</button>
+        <button id="reset" title="Remettre à zéro (Ctrl+Alt+R)">↺</button>
+        <button id="help" title="Aide et fonctionnalités">?</button>
+        <button id="close" title="Fermer">✕</button>
+      </header>
+      <main>
+        <ol id="cards"></ol>
+        <p id="empty">En attente d'un combat…</p>
+      </main>
+      <section id="view" hidden></section>
+      <section id="panel" hidden></section>
     </div>
+    <span class="curl left" data-art="CURL"></span>
+    <span class="curl right" data-art="CURL"></span>
   </div>
   <div id="grip" title="Glisser pour redimensionner (ou Ctrl + molette)"></div>
+  <script src="icons.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

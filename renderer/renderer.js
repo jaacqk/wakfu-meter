@@ -149,7 +149,7 @@ function render() {
   for (const id of ['tabs', 'cumul', 'copy', 'layout', 'state']) $(id).hidden = !combat;
   if (!combat) $('unhide').hidden = true;
   $('module-title').hidden = combat;
-  $('module-title').textContent = MODULE_TITLE[module] || '';
+  if (!combat) $('module-title').replaceChildren(icon(module), el('span', { textContent: MODULE_TITLE[module] }));
   $('reset').title = {
     session: 'Recommencer la session',
     challenges: 'Effacer les statistiques de challenges',
@@ -227,11 +227,21 @@ function hm(ms) {
   const m = Math.floor(ms / 60000);
   return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`;
 }
-function statRow(icon, label, value, extra = '') {
+// Row icon: name from ICONS, tinted with a colour.
+function rowIcon(name, color) {
+  const i = icon(name, 'row-icon');
+  i.style.color = color;
+  return i;
+}
+function infoLine(text) {
+  return el('p', { className: 'info-line' }, icon('info'), el('span', { textContent: text }));
+}
+
+function statRow(iconName, color, label, value, extra = '') {
   return el(
     'li',
     {},
-    el('span', { className: 'row-icon', textContent: icon }),
+    rowIcon(iconName, color),
     el('span', { className: 'row-label', textContent: label }),
     el('span', { className: 'row-value', textContent: value }),
     el('span', { className: 'row-extra', textContent: extra })
@@ -250,14 +260,14 @@ function renderSession() {
     el(
       'ul',
       { className: 'rows' },
-      statRow('⏱', 'Durée', hm(ms)),
-      statRow('⚔', 'Combats', fmt.format(s.fights), `${(s.fights / h).toFixed(1)}/h`),
-      statRow('✨', 'XP', `+${compact(s.xp)}`, `${compact(Math.round(s.xp / h))}/h`),
-      statRow('💰', 'Kamas', `${net >= 0 ? '+' : ''}${compact(net)}`, `${compact(Math.round(net / h))}/h · +${compact(s.kamasIn)} −${compact(s.kamasOut)}`),
-      statRow('🎒', 'Objets ramassés', fmt.format(s.itemCount), top),
-      statRow('🎯', 'Challenges', ch ? `${s.challenges.won}/${ch}` : '—', ch ? `${Math.round((s.challenges.won / ch) * 100)}% réussis` : '')
+      statRow('hourglass', '#e9c46a', 'Durée', hm(ms)),
+      statRow('combat', '#dfe9e7', 'Combats', fmt.format(s.fights), `${(s.fights / h).toFixed(1)}/h`),
+      statRow('sparkle', '#ffd166', 'XP', `+${compact(s.xp)}`, `${compact(Math.round(s.xp / h))}/h`),
+      statRow('coin', '#f4a261', 'Kamas', `${net >= 0 ? '+' : ''}${compact(net)}`, `${compact(Math.round(net / h))}/h · +${compact(s.kamasIn)} −${compact(s.kamasOut)}`),
+      statRow('bag', '#ff7aa2', 'Objets ramassés', fmt.format(s.itemCount), top),
+      statRow('target', '#5eead4', 'Challenges', ch ? `${s.challenges.won}/${ch}` : '—', ch ? `${Math.round((s.challenges.won / ch) * 100)}% réussis` : '')
     ),
-    el('p', { className: 'facts', textContent: "Depuis le lancement de l'application (↺ pour recommencer)." }),
+    infoLine("Depuis le lancement de l'application (↺ pour recommencer)."),
   ];
 }
 
@@ -297,6 +307,7 @@ function renderChallenges() {
         el(
           'li',
           {},
+          rowIcon('flag', c.won >= c.lost ? '#5eead4' : '#ff8fa3'),
           el('span', { className: 'spell-name', textContent: c.name }),
           el('span', { className: 'spell-value', textContent: `✓${c.won} ✗${c.lost} · ${Math.round((c.won / c.total) * 100)}%` }),
           el('div', { className: 'share' }, el('div', { style: `width:${(c.won / c.total) * 100}%` })),
@@ -314,13 +325,13 @@ function renderHonour() {
   if (!players.length) return [el('p', { className: 'facts', textContent: 'Aucun combat depuis le lancement. Le tableau se remplira au fil des combats.' })];
   const best = (fn) => players.reduce((a, b) => (fn(b) > fn(a) ? b : a), players[0]);
   const awards = [
-    ['💥', 'Plus gros coup', best((f) => f.maxHit), (f) => f.maxHit, (f) => f.maxHitSpell || ''],
-    ['⚔', 'Plus de dégâts', best((f) => f.damage), (f) => f.damage],
-    ['⚡', 'Meilleur DPT', best((f) => dpt(f) || 0), (f) => dpt(f) || 0, (f) => `${f.turns} tours`],
-    ['❤', 'Plus de soins', best((f) => f.heal), (f) => f.heal],
-    ['🧱', "Plus d'armure", best((f) => f.armor), (f) => f.armor],
-    ['🛡', 'Plus encaissé', best((f) => f.taken), (f) => f.taken],
-    ['💀', 'Plus de KO', best((f) => f.kos), (f) => f.kos],
+    [['burst', '#ffb703'], 'Plus gros coup', best((f) => f.maxHit), (f) => f.maxHit, (f) => f.maxHitSpell || ''],
+    [['combat', '#dfe9e7'], 'Plus de dégâts', best((f) => f.damage), (f) => f.damage],
+    [['bolt', '#ffd166'], 'Meilleur DPT', best((f) => dpt(f) || 0), (f) => dpt(f) || 0, (f) => `${f.turns} tours`],
+    [['heart', '#ff8fab'], 'Plus de soins', best((f) => f.heal), (f) => f.heal],
+    [['wall', '#f4845f'], "Plus d'armure", best((f) => f.armor), (f) => f.armor],
+    [['shield', '#a5d8ff'], 'Plus encaissé', best((f) => f.taken), (f) => f.taken],
+    [['skull', '#e0aaff'], 'Plus de KO', best((f) => f.kos), (f) => f.kos],
   ].filter(([, , who, value]) => value(who) > 0);
   return [
     el(
@@ -330,7 +341,7 @@ function renderHonour() {
         el(
           'li',
           {},
-          el('span', { className: 'row-icon', textContent: icon }),
+          rowIcon(...icon),
           el('span', { className: 'row-label', textContent: label }),
           el(
             'span',
@@ -343,7 +354,7 @@ function renderHonour() {
         )
       )
     ),
-    el('p', { className: 'facts', textContent: `${cumul.fights} combat(s) depuis le lancement (↺ pour remettre à zéro, avec le cumul Σ).` }),
+    infoLine(`${cumul.fights} combat(s) depuis le lancement (↺ pour remettre à zéro, avec le cumul Σ).`),
   ];
 }
 
@@ -385,8 +396,18 @@ function renderPanel() {
   const spells = (f ? f.bySpell : []).filter((e) => e[stat] > 0).sort((a, b) => b[stat] - a[stat]);
   const max = spells.length ? spells[0][stat] : 0;
   panel.replaceChildren(
-    panelBar(name, classBtn),
-    el('div', { className: 'facts', textContent: facts }),
+    el(
+      'div',
+      { className: 'detail-head' },
+      el('span', { className: 'detail-portrait' }, portraitEl(name)),
+      el('div', { className: 'detail-title' }, el('b', { textContent: name }), el('span', { className: 'facts', textContent: facts })),
+      classBtn,
+      (() => {
+        const close = el('button', { textContent: '✕', title: 'Fermer' });
+        close.onclick = closePanel;
+        return close;
+      })()
+    ),
     spells.length
       ? el(
           'ol',
@@ -395,6 +416,7 @@ function renderPanel() {
             el(
               'li',
               {},
+              icon(e.element || 'neutre', `row-icon el-${(e.element || 'neutre').replace('è', 'e')}`),
               el('span', { className: 'spell-name', textContent: e.name }),
               el('span', { className: 'spell-value', textContent: `${compact(e[stat])} · ${Math.round((e[stat] / total) * 100)}%` }),
               el('div', { className: 'share' }, el('div', { style: `width:${(e[stat] / max) * 100}%` }))
@@ -407,7 +429,7 @@ function renderPanel() {
 
 // --- Welcome / help panel, shown at launch unless turned off.
 const FEATURES = [
-  ['⚔ 📊 🎯 🏆', "modules : combat, bilan de session, challenges, tableau d'honneur"],
+  ['Barre de gauche', "modules : combat, bilan de session, challenges, tableau d'honneur"],
   ['Infligés · Reçus · Soins · Armure', 'les quatre onglets, une carte par joueur du groupe'],
   ['Clic sur une carte', 'détail par sort, DPT (dégâts par tour), choix de la classe'],
   ['Σ', 'cumul des combats, pratique pour tout un donjon'],
@@ -582,8 +604,8 @@ $('copy').onclick = () => {
   const text = recap();
   if (!text) return;
   window.meter.copy(text);
-  $('copy').textContent = '✓';
-  setTimeout(() => { $('copy').textContent = '📋'; }, 1200);
+  $('copy').classList.add('done');
+  setTimeout(() => $('copy').classList.remove('done'), 1200);
 };
 
 // --- Header controls
@@ -617,6 +639,11 @@ $('reset').onclick = reset;
 $('close').onclick = () => window.meter.close();
 $('help').onclick = () => (panelFor?.kind === 'welcome' ? closePanel() : openPanel('welcome'));
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && panelFor) closePanel(); });
+
+// Static icons and ornaments declared in the HTML.
+document.querySelectorAll('[data-icon]').forEach((b) => b.prepend(icon(b.dataset.icon)));
+const ART = { EMBLEM, CURL, SCENERY };
+document.querySelectorAll('[data-art]').forEach((e) => { e.innerHTML = ART[e.dataset.art]; });
 
 window.meter.onCommand((command) => {
   if (command === 'click-through') toggleClickThrough();
