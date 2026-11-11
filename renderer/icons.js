@@ -43,10 +43,6 @@ const ICONS = {
   stasis: S('<path d="M12 2l8.5 5v10L12 22l-8.5-5V7z"/><path d="M12 7l4.3 2.5v5L12 17l-4.3-2.5v-5z"/>'),
 };
 
-// Emblem (top of the side bar): a faceted gem.
-const EMBLEM = `<svg viewBox="0 0 24 24"><defs><linearGradient id="gem" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a7fff3"/><stop offset="1" stop-color="#2bb3a6"/></linearGradient></defs>
-<path d="M12 2l7 6-7 14-7-14z" fill="url(#gem)" stroke="#dffcf8" stroke-width=".8"/><path d="M5 8h14M12 2l-3 6 3 14 3-14z" fill="none" stroke="#0e3a3a" stroke-width=".7" opacity=".55"/></svg>`;
-
 // Decorative corner curl (bottom corners).
 const CURL = `<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
 <path d="M2 38c0-14 6-24 20-26 8-1 12 6 7 10-4 3-9 0-7-3"/><path d="M2 38c8-1 13-5 15-10" opacity=".7"/></svg>`;

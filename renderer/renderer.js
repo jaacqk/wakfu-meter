@@ -642,7 +642,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && panelFor
 
 // Static icons and ornaments declared in the HTML.
 document.querySelectorAll('[data-icon]').forEach((b) => b.prepend(icon(b.dataset.icon)));
-const ART = { EMBLEM, CURL, SCENERY };
+const ART = { CURL, SCENERY };
 document.querySelectorAll('[data-art]').forEach((e) => { e.innerHTML = ART[e.dataset.art]; });
 
 window.meter.onCommand((command) => {
