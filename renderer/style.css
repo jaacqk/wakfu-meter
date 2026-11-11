@@ -197,7 +197,7 @@ header > .scenery {
 }
 
 /* --- Combat: fighter cards ----------------------------------------------- */
-main { padding: 3px 4px 2px; }
+main { padding: 3px 4px 4px; } /* same gap above and below the cards (+1px for the frame) */
 #cards { list-style: none; padding: 0; display: flex; gap: 4px; }
 
 .card {
