@@ -1,0 +1,291 @@
+/* Transparent mode is the default; body.opaque is the "normal" mode. */
+:root {
+  --bg: rgba(12, 15, 20, 0.38);
+  --panel: rgba(0, 0, 0, 0.25);
+  --line: rgba(255, 255, 255, 0.08);
+  --text: #f2f5f8;
+  --muted: #b3bdc8;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  --damage: #ffb81f;
+  --taken: #ff3d6e;
+  --heal: #33c8ff;
+  --armor: #2bff88;
+  --live: #2bff88;
+}
+body.opaque {
+  --bg: rgba(16, 19, 26, 0.92);
+  --panel: rgba(255, 255, 255, 0.06);
+  --line: rgba(255, 255, 255, 0.1);
+  --muted: #98a4b1;
+  --shadow: none;
+}
+
+* { box-sizing: border-box; margin: 0; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  color: var(--text);
+  font: 10px/1.25 "Segoe UI", system-ui, sans-serif;
+  user-select: none;
+  text-shadow: var(--shadow);
+}
+
+body {
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: 6px;
+}
+
+/* Laid out at natural size, then scaled to the window (see renderer.js). */
+#app {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: max-content;
+  transform-origin: 0 0;
+}
+
+button {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  font: inherit;
+  text-shadow: inherit;
+  padding: 1px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+button:hover { color: var(--text); background: rgba(255, 255, 255, 0.1); }
+button:focus-visible { outline: 1px solid var(--text); }
+
+/* Header: drag handle for the frameless window */
+header {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px 3px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+  -webkit-app-region: drag;
+}
+header button, nav { -webkit-app-region: no-drag; }
+header > button { flex-shrink: 0; padding: 1px 3px; }
+
+nav { display: flex; flex-shrink: 0; }
+/* Tabs: no hover box (it left slivers on the sides once scaled), just
+   colour and a glowing underline drawn by a pseudo-element. */
+nav button { position: relative; padding: 1px 3px; border-radius: 0; }
+nav button:hover { background: none; }
+nav button.active { color: var(--text); }
+nav button.active::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  bottom: -1px;
+  height: 1.5px;
+  border-radius: 1px;
+  background: var(--color);
+  box-shadow: 0 0 4px var(--color);
+}
+
+#state {
+  flex: 1 0 auto;
+  text-align: right;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  padding: 0 2px;
+}
+#state.live::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-right: 3px;
+  border-radius: 50%;
+  background: var(--live);
+  box-shadow: 0 0 4px var(--live);
+  vertical-align: 1px;
+}
+
+main { padding: 4px; }
+
+/* Fighter cards: one fixed row (horizontal) or column (vertical) */
+#cards {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  gap: 4px;
+}
+
+.card {
+  position: relative;
+  flex: 1 0 40px; /* share the full width (the header may be wider) */
+  padding: 3px;
+  border-radius: 5px;
+  background: var(--panel);
+  text-align: center;
+}
+
+.card .portrait {
+  position: relative;
+  display: block;
+  width: 30px;
+  height: 30px;
+  margin: 0 auto;
+  padding: 0;
+  border-radius: 5px;
+  overflow: hidden;
+  background: #2a2f39;
+  outline: 1.5px solid transparent;
+  outline-offset: 1px;
+}
+.card.top .portrait { outline-color: var(--color); box-shadow: 0 0 6px var(--color); }
+.card .portrait img { width: 100%; height: 100%; display: block; }
+.card .portrait .initials {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  font-size: 11px;
+  font-weight: 700;
+  background: linear-gradient(160deg, #4a5262, #2a2f39);
+}
+
+.card .value {
+  margin-top: 2px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  letter-spacing: -0.2px;
+}
+
+.card .share {
+  height: 2px;
+  margin-top: 2px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.card .share { overflow: visible; }
+.card .share div { height: 100%; border-radius: inherit; background: var(--color); box-shadow: 0 0 4px var(--color); transition: width 0.3s; }
+
+.card .hide {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 0 2px;
+  font-size: 8px;
+  line-height: 1.2;
+  background: rgba(0, 0, 0, 0.6);
+  visibility: hidden;
+  z-index: 1;
+}
+.card:hover .hide { visibility: visible; }
+
+/* Member who has not acted yet */
+.card.idle { opacity: 0.45; }
+
+/* KO: greyed out portrait with a tag */
+.card.ko .portrait img,
+.card.ko .portrait .initials { filter: grayscale(1) brightness(0.45); }
+.card.ko .value { opacity: 0.5; }
+.card.ko .portrait::after {
+  content: "KO";
+  position: absolute;
+  inset: auto 0 2px;
+  font-size: 8px;
+  font-weight: 800;
+  color: #ff8a80;
+  text-shadow: 0 1px 2px #000;
+}
+
+/* Vertical layout: one row per player */
+body.vertical #cards { flex-direction: column; gap: 3px; }
+body.vertical .card {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 4px 2px 2px;
+  text-align: left;
+}
+body.vertical .card .portrait { width: 20px; height: 20px; margin: 0; border-radius: 4px; flex: none; }
+body.vertical .card .portrait .initials { font-size: 8px; }
+.card .name { display: none; }
+body.vertical .card .info {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: 6px;
+  align-items: baseline;
+}
+body.vertical .card .name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+body.vertical .card .value { margin: 0; text-align: right; }
+body.vertical .card .share { grid-column: 1 / -1; margin: 2px 0 0; height: 3px; }
+body.vertical .card.ko .portrait::after { font-size: 6px; inset: auto 0 1px; text-align: center; }
+
+/* Resize grip, bottom-right corner */
+#grip {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  width: 10px;
+  height: 10px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 50%, var(--muted) 50%, var(--muted) 60%, transparent 60%, transparent 72%, var(--muted) 72%, var(--muted) 82%, transparent 82%);
+  opacity: 0.35;
+  border-bottom-right-radius: 6px;
+  z-index: 5;
+}
+#grip:hover { opacity: 1; }
+
+#empty { padding: 6px 8px; text-align: center; color: var(--muted); }
+#empty[hidden] { display: none; }
+
+/* Header extras */
+button.on { color: var(--text); text-shadow: 0 0 4px var(--live); }
+button:disabled { opacity: 0.3; cursor: default; background: none; }
+main[hidden] { display: none; }
+
+.card { cursor: pointer; }
+.card:hover { background: rgba(255, 255, 255, 0.1); }
+
+/* Big hit: brief glow of the card */
+.card.flash { animation: flash 0.9s ease-out; }
+@keyframes flash {
+  0% { box-shadow: 0 0 0 1.5px var(--damage), 0 0 12px var(--damage); background: rgba(255, 184, 31, 0.35); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+/* Detail / class picker panel: replaces the cards while open */
+#panel { padding: 4px; text-shadow: none; }
+#panel[hidden] { display: none; }
+body:not(.opaque) #panel { background: rgba(12, 15, 20, 0.6); }
+.panel-bar { display: flex; align-items: center; gap: 2px; margin-bottom: 3px; }
+.panel-title { flex: 1; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.facts { color: var(--muted); margin-bottom: 4px; }
+.spells { list-style: none; padding: 0; display: grid; gap: 3px; }
+.spells li { display: grid; grid-template-columns: 1fr auto; column-gap: 6px; }
+.spell-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spell-value { font-weight: 700; font-variant-numeric: tabular-nums; }
+.spells .share {
+  grid-column: 1 / -1;
+  height: 2px;
+  margin-top: 1px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.spells .share div { height: 100%; border-radius: inherit; background: var(--color); box-shadow: 0 0 4px var(--color); }
+.picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(22px, 1fr)); gap: 2px; }
+.picker-grid button { padding: 0; border-radius: 3px; overflow: hidden; aspect-ratio: 1; }
+.picker-grid button.selected { outline: 1.5px solid var(--damage); }
+.picker-grid img { width: 100%; height: 100%; display: block; }

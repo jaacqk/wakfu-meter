@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:">
+  <title>Wakfu Meter</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <nav id="tabs">
+        <button data-stat="damage" class="active">Infligés</button>
+        <button data-stat="taken">Reçus</button>
+        <button data-stat="heal">Soins</button>
+        <button data-stat="armor">Armure</button>
+      </nav>
+      <button id="cumul" title="Cumul des combats (donjon)">Σ</button>
+      <span id="state"></span>
+      <button id="unhide" title="Réafficher les combattants masqués" hidden></button>
+      <button id="copy" title="Copier le récapitulatif">📋</button>
+      <button id="through" title="Clics traversants (Ctrl+Alt+C)">🖱</button>
+      <button id="layout" title="Basculer horizontal / vertical">⇅</button>
+      <button id="mode" title="Basculer transparent / normal">◐</button>
+      <button id="reset" title="Remettre à zéro (Ctrl+Alt+R)">↺</button>
+      <button id="close" title="Fermer">✕</button>
+    </header>
+    <main>
+      <ol id="cards"></ol>
+      <p id="empty">En attente d'un combat…</p>
+    </main>
+    <section id="panel" hidden></section>
+  </div>
+  <div id="grip" title="Glisser pour redimensionner (ou Ctrl + molette)"></div>
+  <script src="renderer.js"></script>
+</body>
+</html>

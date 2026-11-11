@@ -1,0 +1,46 @@
+{
+  "name": "wakfu-meter",
+  "productName": "Wakfu Meter",
+  "version": "0.1.0",
+  "description": "Overlay transparent affichant les dégâts, soins et armure par combattant à partir du log de chat de Wakfu.",
+  "main": "main.js",
+  "private": true,
+  "author": "jaacqk",
+  "repository": "github:jaacqk/wakfu-meter",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/",
+    "dist": "electron-builder --win --publish never",
+    "release": "electron-builder --win --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
+  },
+  "devDependencies": {
+    "electron": "^45.3.0",
+    "electron-builder": "^26.18.0"
+  },
+  "allowScripts": {
+    "electron@45.3.0": true
+  },
+  "build": {
+    "appId": "io.github.wakfumeter",
+    "productName": "Wakfu Meter",
+    "files": ["main.js", "preload.js", "src/**", "renderer/**"],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "artifactName": "Wakfu-Meter-Setup-${version}.${ext}"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "jaacqk",
+      "repo": "wakfu-meter",
+      "releaseType": "release"
+    }
+  }
+}
