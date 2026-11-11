@@ -2,9 +2,11 @@
 
 const fs = require('fs');
 const path = require('path');
+const { execFile } = require('child_process');
 const { app, BrowserWindow, ipcMain, nativeImage, globalShortcut, clipboard, screen } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const { FightTracker } = require('./src/parser');
+const { SessionStats } = require('./src/session');
 const { tailLines } = require('./src/tail');
 const { loadPortraits } = require('./src/portraits');
 const { CLASSES } = require('./src/classes');
@@ -24,14 +26,37 @@ const SHORTCUTS = {
   'Control+Alt+R': 'reset',
 };
 
+// Small JSON files in the app's data folder.
+function readJson(name, fallback) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), name), 'utf8'));
+  } catch {
+    return fallback;
+  }
+}
+function writeJson(name, value) {
+  try {
+    fs.writeFileSync(path.join(app.getPath('userData'), name), JSON.stringify(value));
+  } catch {}
+}
+
 let win;
 let status = null;
 let portraits = {};
+let live = false; // false while the logs already on disk are being read at launch
+const settings = { launchWithWakfu: false, ...readJson('settings.json', {}) };
+const challenges = readJson('challenges.json', {}); // name -> { won, lost }, kept across sessions
 const tracker = new FightTracker();
+const session = new SessionStats((name, won) => {
+  if (!live) return; // old log lines must not be counted again at each launch
+  const c = (challenges[name] ||= { won: 0, lost: 0 });
+  c[won ? 'won' : 'lost']++;
+  writeJson('challenges.json', challenges);
+});
 
-// Everything the overlay shows: current fight and the cumul.
+// Everything the overlay shows.
 function view() {
-  return { fight: tracker.snapshot(), cumul: tracker.cumulSnapshot() };
+  return { fight: tracker.snapshot(), cumul: tracker.cumulSnapshot(), session: session.snapshot(), challenges };
 }
 
 function send(channel, data) {
@@ -53,18 +78,14 @@ function loadPortraitUrls() {
 }
 
 // Window position, remembered between launches.
-const POSITION_FILE = path.join(app.getPath('userData'), 'position.json');
-
 function savedPosition() {
-  try {
-    const { x, y } = JSON.parse(fs.readFileSync(POSITION_FILE, 'utf8'));
-    // Ignore it if that spot is no longer on a screen (e.g. monitor unplugged).
-    const area = screen.getDisplayMatching({ x, y, width: 50, height: 20 }).workArea;
-    const visible = x >= area.x - 40 && y >= area.y - 10 && x < area.x + area.width - 40 && y < area.y + area.height - 20;
-    return visible ? { x, y } : {};
-  } catch {
-    return {};
-  }
+  const pos = readJson('position.json', null);
+  if (!pos) return {};
+  const { x, y } = pos;
+  // Ignore it if that spot is no longer on a screen (e.g. monitor unplugged).
+  const area = screen.getDisplayMatching({ x, y, width: 50, height: 20 }).workArea;
+  const visible = x >= area.x - 40 && y >= area.y - 10 && x < area.x + area.width - 40 && y < area.y + area.height - 20;
+  return visible ? { x, y } : {};
 }
 
 function rememberPosition() {
@@ -73,16 +94,17 @@ function rememberPosition() {
     clearTimeout(timer);
     timer = setTimeout(() => {
       const [x, y] = win.getPosition();
-      try { fs.writeFileSync(POSITION_FILE, JSON.stringify({ x, y })); } catch {}
+      writeJson('position.json', { x, y });
     }, 500);
   });
 }
 
-function createWindow() {
+function createWindow(show) {
   win = new BrowserWindow({
     ...savedPosition(),
     width: 260,
     height: 74,
+    show,
     transparent: true,
     frame: false,
     resizable: false, // transparent windows can't be edge-resized on Windows; see the grip
@@ -96,6 +118,7 @@ function createWindow() {
   rememberPosition();
   win.webContents.on('did-finish-load', () => {
     send('classes', { classes: CLASSES, portraits, version: app.getVersion() });
+    send('settings', settings);
     send('fight', view());
     if (status) send('status', status);
   });
@@ -115,30 +138,67 @@ function registerShortcuts() {
   }
 }
 
+// --- "Launch with Wakfu": the app starts with Windows (hidden), shows up when
+// the game runs and hides when it closes.
+const STARTED_AT_LOGIN = process.argv.includes('--with-wakfu');
+
+function applyLaunchSetting() {
+  if (!app.isPackaged) return; // only the installed app can register itself
+  app.setLoginItemSettings({ openAtLogin: settings.launchWithWakfu, args: ['--with-wakfu'] });
+}
+
+// Wakfu runs as javaw.exe with a window titled "<character> - WAKFU".
+function isWakfuRunning() {
+  return new Promise((resolve) => {
+    execFile('tasklist', ['/V', '/FO', 'CSV', '/NH', '/FI', 'IMAGENAME eq javaw.exe'], { windowsHide: true }, (err, out) => {
+      resolve(!err && /WAKFU"\s*$/m.test(out));
+    });
+  });
+}
+
+let wakfuWasRunning = null;
+async function watchWakfu() {
+  if (settings.launchWithWakfu) {
+    const running = await isWakfuRunning();
+    if (running && wakfuWasRunning !== true) win.showInactive();
+    if (!running && wakfuWasRunning === true) win.hide();
+    wakfuWasRunning = running;
+  } else {
+    wakfuWasRunning = null;
+  }
+  setTimeout(watchWakfu, 5000);
+}
+
 // One overlay at a time: launching it again just shows the running one.
 if (!app.requestSingleInstanceLock()) app.exit(0);
 app.on('second-instance', () => win?.showInactive());
 
 app.whenReady().then(() => {
   portraits = loadPortraitUrls();
-  createWindow();
+  createWindow(!STARTED_AT_LOGIN); // at login, wait for Wakfu before showing up
   registerShortcuts();
+  applyLaunchSetting();
+  watchWakfu();
   // Installed app: look for a newer release on GitHub; it downloads in the
   // background and installs when the app quits (with a Windows notification).
   if (app.isPackaged) {
     autoUpdater.checkForUpdatesAndNotify().catch((err) => console.warn(`Mise à jour impossible : ${err.message}`));
   }
 
-  let firstBatch = true;
   tailLines(
     LOG_PATH,
     (lines) => {
       let changed = false;
-      for (const line of lines) changed = tracker.feed(line) || changed;
-      // The cumul starts at launch, not with the old fights already in the log.
-      if (firstBatch) {
+      for (const line of lines) {
+        changed = tracker.feed(line) || changed;
+        changed = session.feed(line) || changed;
+      }
+      // The cumul and the session start at launch, not with the old fights
+      // already in the log.
+      if (!live) {
         tracker.resetCumul();
-        firstBatch = false;
+        session.reset();
+        live = true;
       }
       if (changed) send('fight', view());
     },
@@ -165,6 +225,21 @@ app.whenReady().then(() => {
   ipcMain.on('reset-cumul', () => {
     tracker.resetCumul();
     send('fight', view());
+  });
+  ipcMain.on('reset-session', () => {
+    session.reset();
+    send('fight', view());
+  });
+  ipcMain.on('reset-challenges', () => {
+    for (const name of Object.keys(challenges)) delete challenges[name];
+    writeJson('challenges.json', challenges);
+    send('fight', view());
+  });
+  ipcMain.on('set-launch-with-wakfu', (_e, on) => {
+    settings.launchWithWakfu = !!on;
+    writeJson('settings.json', settings);
+    applyLaunchSetting();
+    send('settings', settings);
   });
   ipcMain.on('copy', (_e, text) => clipboard.writeText(String(text)));
   // Click-through: the page asks to ignore mouse events except over its

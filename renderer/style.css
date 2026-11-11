@@ -307,3 +307,40 @@ button.primary {
   text-shadow: none;
 }
 button.primary:hover { background: var(--damage); filter: brightness(1.1); color: #111; }
+
+/* Anything hidden stays hidden, whatever its display rule */
+[hidden] { display: none !important; }
+
+/* Module switcher (left of the header) */
+#modules { display: flex; flex-shrink: 0; -webkit-app-region: no-drag; margin-right: 3px; }
+#modules button { padding: 1px 2px; opacity: 0.45; filter: grayscale(0.6); }
+#modules button.active { opacity: 1; filter: none; text-shadow: 0 0 4px var(--live); }
+#modules button:hover { opacity: 0.85; background: none; }
+#module-title { flex: 1; font-weight: 700; padding-left: 2px; white-space: nowrap; }
+
+/* Module views (session, challenges, honour) */
+#view { padding: 4px 5px; }
+.rows { list-style: none; padding: 0; margin: 0 0 4px; display: grid; gap: 2px; }
+.rows li {
+  display: grid;
+  grid-template-columns: 14px auto 1fr auto;
+  column-gap: 5px;
+  align-items: center;
+}
+.rows.honour li { grid-template-columns: 14px auto 1fr auto auto; }
+.row-icon { text-align: center; }
+.row-label { color: var(--muted); white-space: nowrap; }
+.row-value { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.rows:not(.honour) .row-value { grid-column: 3; }
+.row-extra { color: var(--muted); font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+.rows:not(.honour) .row-extra { grid-column: 4; }
+.row-who { display: flex; align-items: center; gap: 3px; min-width: 0; overflow: hidden; }
+.row-name { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.mini-portrait { width: 13px; height: 13px; border-radius: 3px; overflow: hidden; flex: none; background: #2a2f39; }
+.mini-portrait img { width: 100%; height: 100%; display: block; }
+.mini-portrait .initials { display: grid; place-items: center; height: 100%; font-size: 6px; font-weight: 700; }
+.challenges .share div { background: var(--heal); box-shadow: 0 0 4px var(--heal); }
+
+/* Settings in the help panel */
+.setting { display: flex; align-items: center; gap: 3px; color: var(--text); cursor: pointer; margin: 2px 0 4px; }
+.setting input { margin: 0; width: 9px; height: 9px; accent-color: var(--damage); }

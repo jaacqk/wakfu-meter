@@ -23,6 +23,18 @@ passer devant le plein écran exclusif).
 
 ## Utilisation
 
+L'application regroupe plusieurs modules, choisis par les icônes à gauche de l'en-tête :
+
+| Module | Contenu |
+|---|---|
+| ⚔ Combat | Dégâts infligés et reçus, soins, armure par joueur (détails ci-dessous) |
+| 📊 Session | Depuis le lancement : durée, combats, XP, kamas gagnés/perdus, objets ramassés, challenges — avec les moyennes par heure |
+| 🎯 Challenges | Taux de réussite global et par challenge, conservé d'une session à l'autre |
+| 🏆 Honneur | Plus gros coup, plus de dégâts, meilleur DPT, plus de soins, d'armure, plus encaissé, plus de KO (combats depuis le lancement) |
+
+Option dans l'aide (`?`) : **Lancer automatiquement avec Wakfu** — l'application démarre avec Windows en arrière-plan,
+s'affiche quand Wakfu se lance et se masque quand il se ferme.
+
 | | |
 |---|---|
 | Onglets | Infligés · Reçus · Soins · Armure |

@@ -267,3 +267,20 @@ test('ignores a technical-log fight list without players', () => {
   t.feed(C('10:33:41', 'Boss: -100 PV (Feu)'));
   assert.strictEqual(t.snapshot().fighters.find((f) => f.name === 'Arkan').player, true);
 });
+
+test('tracks KO count and biggest hit for the honour board, summed in the cumul', () => {
+  const t = new FightTracker();
+  const fight = (h, hit) => [
+    C(`${h}:00:00`, 'Arkan lance le sort Flèche explosive'),
+    C(`${h}:00:01`, `Boss: -${hit} PV (Feu)`),
+    C(`${h}:00:02`, 'Boss lance le sort Coup'),
+    C(`${h}:00:03`, 'Arkan: -50 PV (Terre)'),
+    C(`${h}:00:04`, 'Arkan est KO !'),
+    C(`${h}:00:09`, "Combat terminé, cliquez ici pour rouvrir l'écran de fin de combat. "),
+  ];
+  t.resetCumul();
+  fight('10', 300).forEach((l) => t.feed(l));
+  fight('11', 900).forEach((l) => t.feed(l));
+  const a = t.cumulSnapshot().fighters.find((f) => f.name === 'Arkan');
+  assert.deepStrictEqual({ kos: a.kos, maxHit: a.maxHit, spell: a.maxHitSpell }, { kos: 2, maxHit: 900, spell: 'Flèche explosive' });
+});

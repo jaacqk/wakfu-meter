@@ -191,6 +191,7 @@ class FightTracker {
         damage: 0, taken: 0, heal: 0, armor: 0,
         ko: false, banked: 0,
         turns: 0, hits: 0, hitSum: 0, bigHits: 0,
+        kos: 0, maxHit: 0, maxHitSpell: null, // for the honour board
         spells: new Map(), // spell cast -> count (class detection)
         bySpell: new Map(), // norm(effect) -> { name, damage, taken, heal, armor }
       };
@@ -294,7 +295,9 @@ class FightTracker {
     if ((match = KO.exec(msg))) {
       this.learn(match[1], 'ally');
       if (!this.fight || this.ended) return false;
-      this.fighter(match[1]).ko = true;
+      const f = this.fighter(match[1]);
+      f.ko = true;
+      f.kos++;
       return true;
     }
     if ((match = REVIVED.exec(msg))) {
@@ -368,6 +371,10 @@ class FightTracker {
       if (f.hits >= 3 && n >= 1000 && n >= 2.5 * (f.hitSum / f.hits)) f.bigHits++;
       f.hits++;
       f.hitSum += n;
+      if (n > f.maxHit) {
+        f.maxHit = n;
+        f.maxHitSpell = label || null;
+      }
     } else {
       const n = parseNumber(hp ? hp[3] : armor[2]);
       if (who !== victim) this.relate(who, victim, 'help', n);
@@ -468,17 +475,21 @@ class FightTracker {
     const parts = [...this.cumulFights];
     if (this.fight && !this.fight.closed) parts.push(this.snapshot());
     if (!parts.length) return null;
-    const STATS = ['damage', 'taken', 'heal', 'armor', 'turns', 'hits', 'bigHits'];
+    const STATS = ['damage', 'taken', 'heal', 'armor', 'turns', 'hits', 'bigHits', 'kos'];
     const fighters = new Map();
     for (const part of parts) {
       for (const f of part.fighters) {
         let c = fighters.get(f.name);
         if (!c) {
-          c = { name: f.name, ally: false, player: false, breed: null, ko: false, spellMap: new Map() };
+          c = { name: f.name, ally: false, player: false, breed: null, ko: false, maxHit: 0, maxHitSpell: null, spellMap: new Map() };
           for (const k of STATS) c[k] = 0;
           fighters.set(f.name, c);
         }
         for (const k of STATS) c[k] += f[k];
+        if (f.maxHit > c.maxHit) {
+          c.maxHit = f.maxHit;
+          c.maxHitSpell = f.maxHitSpell;
+        }
         c.ally ||= f.ally;
         c.player ||= f.player;
         c.breed ||= f.breed;

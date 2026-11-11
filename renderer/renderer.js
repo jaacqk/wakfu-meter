@@ -21,6 +21,11 @@ let stat = 'damage';
 let cumulOn = false;
 let panelFor = null; // { kind: 'detail' | 'picker' | 'welcome', name }
 let version = '';
+let module = 'combat'; // combat | session | challenges | honour
+let settingsState = { launchWithWakfu: false };
+let contentWidth = 0; // width of the cards, reused by the other views
+const viewEl = $('view');
+const MODULE_TITLE = { session: 'Bilan de session', challenges: 'Challenges', honour: "Tableau d'honneur" };
 
 // Per-viewer preferences, kept between sessions.
 function load(key, fallback) {
@@ -139,7 +144,17 @@ function render() {
   $('cumul').classList.toggle('on', cumulOn);
   $('unhide').hidden = hidden.size === 0;
   $('unhide').textContent = `👁${hidden.size}`;
-  $('reset').title = cumulOn ? 'Remettre le cumul à zéro' : 'Remettre le combat à zéro (Ctrl+Alt+R)';
+  const combat = module === 'combat';
+  document.querySelectorAll('#modules button').forEach((b) => b.classList.toggle('active', b.dataset.module === module));
+  for (const id of ['tabs', 'cumul', 'copy', 'layout', 'state']) $(id).hidden = !combat;
+  if (!combat) $('unhide').hidden = true;
+  $('module-title').hidden = combat;
+  $('module-title').textContent = MODULE_TITLE[module] || '';
+  $('reset').title = {
+    session: 'Recommencer la session',
+    challenges: 'Effacer les statistiques de challenges',
+    honour: "Remettre le tableau d'honneur à zéro (avec le cumul)",
+  }[module] || (cumulOn ? 'Remettre le cumul à zéro' : 'Remettre le combat à zéro (Ctrl+Alt+R)');
 
   // Remember classes so idle members keep their portrait: exact ones from the
   // game's technical log first, otherwise guessed from spells.
@@ -173,27 +188,157 @@ function render() {
   else empty.textContent = cumulOn ? 'Aucun combat dans le cumul.' : "En attente d'un combat…";
 
   cards.replaceChildren(...list.map((s, i) => card(s, i + 1, max, total, live)));
+  showSections();
+  if (!combat && !panelFor) renderModule();
   if (panelFor) renderPanel();
   fitWindow();
 }
 
+// Shows the cards, a module view or a panel (only one at a time).
+function showSections() {
+  if (!main.hidden && main.offsetWidth) contentWidth = main.offsetWidth;
+  const combat = module === 'combat';
+  main.hidden = !!panelFor || !combat;
+  viewEl.hidden = !!panelFor || combat;
+  panel.hidden = !panelFor;
+  viewEl.style.width = `${Math.max(240, contentWidth)}px`;
+}
+
 // --- Detail / class picker panel (replaces the cards while open)
 function openPanel(kind, name) {
-  if (!panelFor) panel.style.width = `${Math.max(kind === 'welcome' ? 280 : 180, main.offsetWidth)}px`;
+  if (!panelFor) panel.style.width = `${Math.max(kind === 'welcome' ? 280 : 180, main.offsetWidth || contentWidth)}px`;
   panelFor = { kind, name };
-  main.hidden = true;
-  panel.hidden = false;
+  showSections();
   renderPanel();
   fitWindow();
   updateMouse();
 }
 function closePanel() {
   panelFor = null;
-  panel.hidden = true;
-  main.hidden = false;
+  showSections();
+  if (module !== 'combat') renderModule();
   fitWindow();
   updateMouse();
 }
+
+// --- Modules other than combat
+const hours = (ms) => Math.max(ms / 3600000, 1 / 60);
+function hm(ms) {
+  const m = Math.floor(ms / 60000);
+  return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`;
+}
+function statRow(icon, label, value, extra = '') {
+  return el(
+    'li',
+    {},
+    el('span', { className: 'row-icon', textContent: icon }),
+    el('span', { className: 'row-label', textContent: label }),
+    el('span', { className: 'row-value', textContent: value }),
+    el('span', { className: 'row-extra', textContent: extra })
+  );
+}
+
+function renderSession() {
+  const s = data.session;
+  if (!s) return [el('p', { className: 'facts', textContent: 'En attente du log…' })];
+  const ms = Date.now() - s.started;
+  const h = hours(ms);
+  const net = s.kamasIn - s.kamasOut;
+  const top = s.topItems.slice(0, 3).map(([n, q]) => `${n} ×${q}`).join(', ');
+  const ch = s.challenges.won + s.challenges.lost;
+  return [
+    el(
+      'ul',
+      { className: 'rows' },
+      statRow('⏱', 'Durée', hm(ms)),
+      statRow('⚔', 'Combats', fmt.format(s.fights), `${(s.fights / h).toFixed(1)}/h`),
+      statRow('✨', 'XP', `+${compact(s.xp)}`, `${compact(Math.round(s.xp / h))}/h`),
+      statRow('💰', 'Kamas', `${net >= 0 ? '+' : ''}${compact(net)}`, `${compact(Math.round(net / h))}/h · +${compact(s.kamasIn)} −${compact(s.kamasOut)}`),
+      statRow('🎒', 'Objets ramassés', fmt.format(s.itemCount), top),
+      statRow('🎯', 'Challenges', ch ? `${s.challenges.won}/${ch}` : '—', ch ? `${Math.round((s.challenges.won / ch) * 100)}% réussis` : '')
+    ),
+    el('p', { className: 'facts', textContent: "Depuis le lancement de l'application (↺ pour recommencer)." }),
+  ];
+}
+
+function renderChallenges() {
+  const list = Object.entries(data.challenges || {})
+    .map(([name, c]) => ({ name, ...c, total: c.won + c.lost }))
+    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+  if (!list.length) return [el('p', { className: 'facts', textContent: 'Aucun challenge terminé pour le moment. Les résultats apparaîtront ici au fil des combats.' })];
+  const won = list.reduce((s, c) => s + c.won, 0);
+  const total = list.reduce((s, c) => s + c.total, 0);
+  const SHOWN = 8; // the most played ones, to keep the window small
+  const more = list.length - SHOWN;
+  list.length = Math.min(list.length, SHOWN);
+  return [
+    el('p', { className: 'facts', textContent: `Réussite globale : ${Math.round((won / total) * 100)}% (${won}/${total}) · conservé d'une session à l'autre` }),
+    el(
+      'ol',
+      { className: 'spells challenges' },
+      ...list.map((c) =>
+        el(
+          'li',
+          {},
+          el('span', { className: 'spell-name', textContent: c.name }),
+          el('span', { className: 'spell-value', textContent: `✓${c.won} ✗${c.lost} · ${Math.round((c.won / c.total) * 100)}%` }),
+          el('div', { className: 'share' }, el('div', { style: `width:${(c.won / c.total) * 100}%` }))
+        )
+      )
+    ),
+    more > 0 ? el('p', { className: 'facts', textContent: `… et ${more} autre${more > 1 ? 's' : ''} challenge${more > 1 ? 's' : ''} moins joué${more > 1 ? 's' : ''}.` }) : '',
+  ];
+}
+
+function renderHonour() {
+  const cumul = data.cumul;
+  const players = (cumul ? cumul.fighters : []).filter((f) => f.player && !hidden.has(f.name));
+  if (!players.length) return [el('p', { className: 'facts', textContent: 'Aucun combat depuis le lancement. Le tableau se remplira au fil des combats.' })];
+  const best = (fn) => players.reduce((a, b) => (fn(b) > fn(a) ? b : a), players[0]);
+  const awards = [
+    ['💥', 'Plus gros coup', best((f) => f.maxHit), (f) => f.maxHit, (f) => f.maxHitSpell || ''],
+    ['⚔', 'Plus de dégâts', best((f) => f.damage), (f) => f.damage],
+    ['⚡', 'Meilleur DPT', best((f) => dpt(f) || 0), (f) => dpt(f) || 0, (f) => `${f.turns} tours`],
+    ['❤', 'Plus de soins', best((f) => f.heal), (f) => f.heal],
+    ['🧱', "Plus d'armure", best((f) => f.armor), (f) => f.armor],
+    ['🛡', 'Plus encaissé', best((f) => f.taken), (f) => f.taken],
+    ['💀', 'Plus de KO', best((f) => f.kos), (f) => f.kos],
+  ].filter(([, , who, value]) => value(who) > 0);
+  return [
+    el(
+      'ul',
+      { className: 'rows honour' },
+      ...awards.map(([icon, label, who, value, extra]) =>
+        el(
+          'li',
+          {},
+          el('span', { className: 'row-icon', textContent: icon }),
+          el('span', { className: 'row-label', textContent: label }),
+          el(
+            'span',
+            { className: 'row-who', title: who.name },
+            el('span', { className: 'mini-portrait' }, portraitEl(who.name)),
+            el('span', { className: 'row-name', textContent: who.name })
+          ),
+          el('span', { className: 'row-value', textContent: compact(value(who)) }),
+          el('span', { className: 'row-extra', textContent: extra ? extra(who) : '' })
+        )
+      )
+    ),
+    el('p', { className: 'facts', textContent: `${cumul.fights} combat(s) depuis le lancement (↺ pour remettre à zéro, avec le cumul Σ).` }),
+  ];
+}
+
+function renderModule() {
+  const content = { session: renderSession, challenges: renderChallenges, honour: renderHonour }[module]();
+  viewEl.replaceChildren(...content);
+}
+setInterval(() => {
+  if (module === 'session' && !panelFor) {
+    renderModule();
+    fitWindow();
+  }
+}, 15000);
 
 function panelBar(title, ...buttons) {
   const close = el('button', { textContent: '✕', title: 'Fermer' });
@@ -244,6 +389,7 @@ function renderPanel() {
 
 // --- Welcome / help panel, shown at launch unless turned off.
 const FEATURES = [
+  ['⚔ 📊 🎯 🏆', "modules : combat, bilan de session, challenges, tableau d'honneur"],
   ['Infligés · Reçus · Soins · Armure', 'les quatre onglets, une carte par joueur du groupe'],
   ['Clic sur une carte', 'détail par sort, DPT (dégâts par tour), choix de la classe'],
   ['Σ', 'cumul des combats, pratique pour tout un donjon'],
@@ -259,6 +405,8 @@ function renderWelcome() {
   hide.onchange = () => save('hideWelcome', hide.checked);
   const go = el('button', { className: 'primary', textContent: "C'est parti !" });
   go.onclick = closePanel;
+  const withWakfu = el('input', { type: 'checkbox', checked: settingsState.launchWithWakfu });
+  withWakfu.onchange = () => window.meter.setLaunchWithWakfu(withWakfu.checked);
   panel.replaceChildren(
     panelBar('Bienvenue dans Wakfu Meter'),
     el(
@@ -273,6 +421,12 @@ function renderWelcome() {
       ...FEATURES.map(([key, text]) => el('li', {}, el('b', { textContent: key }), ` ${text}`))
     ),
     el('p', { className: 'facts', textContent: 'Jeu en français, en mode fenêtré ou plein écran fenêtré.' }),
+    el(
+      'label',
+      { className: 'setting', title: "Démarre avec Windows en arrière-plan, s'affiche quand Wakfu se lance et se masque quand il se ferme." },
+      withWakfu,
+      ' Lancer automatiquement avec Wakfu'
+    ),
     el(
       'div',
       { className: 'welcome-footer' },
@@ -427,9 +581,20 @@ $('through').onclick = toggleClickThrough;
 $('layout').onclick = () => { vertical = !vertical; save('vertical', vertical); if (panelFor) closePanel(); render(); };
 $('mode').onclick = () => { opaque = !opaque; save('opaque', opaque); render(); };
 function reset() {
-  if (cumulOn) window.meter.resetCumul();
+  if (module === 'session') window.meter.resetSession();
+  else if (module === 'challenges') {
+    if (confirm('Effacer toutes les statistiques de challenges ?')) window.meter.resetChallenges();
+  } else if (module === 'honour' || cumulOn) window.meter.resetCumul();
   else window.meter.reset();
 }
+document.querySelectorAll('#modules button').forEach((btn) => {
+  btn.onclick = () => {
+    module = btn.dataset.module;
+    if (panelFor) panelFor = null;
+    render();
+    updateMouse();
+  };
+});
 $('reset').onclick = reset;
 $('close').onclick = () => window.meter.close();
 $('help').onclick = () => (panelFor?.kind === 'welcome' ? closePanel() : openPanel('welcome'));
@@ -437,7 +602,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && panelFor
 
 window.meter.onCommand((command) => {
   if (command === 'click-through') toggleClickThrough();
-  else if (command === 'next-tab') setStat(STATS[(STATS.indexOf(stat) + 1) % STATS.length]);
+  else if (command === 'next-tab' && module === 'combat') setStat(STATS[(STATS.indexOf(stat) + 1) % STATS.length]);
   else if (command === 'reset') reset();
 });
 window.meter.onClasses((d) => {
@@ -452,6 +617,10 @@ window.meter.onFight((d) => {
   render();
 });
 window.meter.onStatus((d) => { status = d; render(); });
+window.meter.onSettings((s) => {
+  settingsState = s;
+  if (panelFor?.kind === 'welcome') renderPanel();
+});
 render();
 if (!load('hideWelcome', false)) openPanel('welcome');
 updateMouse();
