@@ -523,7 +523,7 @@ window.addEventListener('wheel', (e) => {
 let ignoring = null;
 let pointerTarget = null;
 function updateMouse() {
-  const interactive = !clickThrough || !!panelFor || !!pointerTarget?.closest?.('header, #grip');
+  const interactive = !clickThrough || !!panelFor || !!pointerTarget?.closest?.('header, #modules, #grip');
   if (ignoring === !interactive) return;
   ignoring = !interactive;
   window.meter.ignoreMouse(ignoring);

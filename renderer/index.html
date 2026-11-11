@@ -8,13 +8,14 @@
 </head>
 <body>
   <div id="app">
+    <nav id="modules">
+      <button data-module="combat" class="active" title="Combat : dégâts, soins, armure">⚔</button>
+      <button data-module="session" title="Bilan de session">📊</button>
+      <button data-module="challenges" title="Suivi des challenges">🎯</button>
+      <button data-module="honour" title="Tableau d'honneur">🏆</button>
+    </nav>
+    <div id="content">
     <header>
-      <nav id="modules">
-        <button data-module="combat" class="active" title="Combat : dégâts, soins, armure">⚔</button>
-        <button data-module="session" title="Bilan de session">📊</button>
-        <button data-module="challenges" title="Suivi des challenges">🎯</button>
-        <button data-module="honour" title="Tableau d'honneur">🏆</button>
-      </nav>
       <span id="module-title" hidden></span>
       <nav id="tabs">
         <button data-stat="damage" class="active">Infligés</button>
@@ -39,6 +40,7 @@
     </main>
     <section id="view" hidden></section>
     <section id="panel" hidden></section>
+    </div>
   </div>
   <div id="grip" title="Glisser pour redimensionner (ou Ctrl + molette)"></div>
   <script src="renderer.js"></script>

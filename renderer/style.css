@@ -312,8 +312,21 @@ button.primary:hover { background: var(--damage); filter: brightness(1.1); color
 [hidden] { display: none !important; }
 
 /* Module switcher (left of the header) */
-#modules { display: flex; flex-shrink: 0; -webkit-app-region: no-drag; margin-right: 3px; }
-#modules button { padding: 1px 2px; opacity: 0.45; filter: grayscale(0.6); }
+/* Vertical bar on the left, as tall as the window; also a drag handle */
+#app { display: flex; align-items: stretch; }
+#content { display: flex; flex-direction: column; }
+#modules {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 2px;
+  padding: 3px 2px;
+  border-right: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 6px 0 0 6px;
+  -webkit-app-region: drag;
+}
+#modules button { -webkit-app-region: no-drag; padding: 2px 3px; font-size: 11px; opacity: 0.45; filter: grayscale(0.6); }
 #modules button.active { opacity: 1; filter: none; text-shadow: 0 0 4px var(--live); }
 #modules button:hover { opacity: 0.85; background: none; }
 #module-title { flex: 1; font-weight: 700; padding-left: 2px; white-space: nowrap; }
