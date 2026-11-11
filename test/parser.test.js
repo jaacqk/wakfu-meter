@@ -225,3 +225,45 @@ test('a group never shows more than 6 members; absent ones are dropped', () => {
   t.feed(C('09:21:00', "Combat terminé, cliquez ici pour rouvrir l'écran de fin de combat. "));
   assert.deepStrictEqual([...t.roster].sort(), [...players].sort());
 });
+
+test("credits a Gobgob creature's damage to its Osamodas", () => {
+  const t = new FightTracker();
+  [
+    C('10:05:36', 'Mira lance le sort Invocation'),
+    C('10:05:37', 'Mira: Invoque une créature du Gobgob'),
+    C('10:05:37', 'Polyphème: 2 033 Maîtrise Élémentaire'),
+    C('10:05:40', 'Polyphème lance le sort Mauvais oeil'),
+    C('10:05:41', 'Boss: -656 PV (Eau)'),
+  ].forEach((l) => t.feed(l));
+  const by = Object.fromEntries(t.snapshot().fighters.map((f) => [f.name, f.damage]));
+  assert.strictEqual(by.Mira, 656);
+  assert.strictEqual(by['Polyphème'], undefined);
+});
+
+test('uses the technical log for the players of a fight and their exact class', () => {
+  const T = (time, name, breed, ai) =>
+    ` INFO ${time},000 [AWT-EventQueue-0] (fcd:1399) - [_FL_] fightId=42 ${name} breed : ${breed} [123] isControlledByAI=${ai} obstacleId : -1 join the fight at {Point3 : (1, 2, 0)}`;
+  const J = (time, name) => `${time},000 - [Information (jeu)] ${name} a rejoint le groupe`;
+  const t = new FightTracker();
+  ['Elya', 'Bryn', 'Glim'].forEach((n) => t.feed(J('10:00:00', n)));
+  t.feed(J('10:01:00', 'Tora')); // left the group later, without a log line
+  t.feedTech(T('10:41:00', 'Elya', 7, false));
+  t.feedTech(T('10:41:00', 'Bryn', 2, false));
+  t.feedTech(T('10:41:00', 'Glim', 11, false));
+  t.feedTech(T('10:41:00', 'Crustacérébro', 5182, true));
+  t.feed(C('10:41:05', 'Glim lance le sort Truc'));
+  t.feed(C('10:41:06', 'Crustacérébro: -100 PV (Feu)'));
+  const s = t.snapshot();
+  assert.deepStrictEqual(s.roster.sort(), ['Bryn', 'Elya', 'Glim']); // Tora is not in the fight
+  assert.deepStrictEqual(s.breeds, { Elya: 7, Bryn: 2, Glim: 11 });
+  assert.strictEqual(s.fighters.find((f) => f.name === 'Glim').breed, 11);
+  assert.strictEqual(s.fighters.find((f) => f.name === 'Crustacérébro').player, false);
+});
+
+test('ignores a technical-log fight list without players', () => {
+  const t = new FightTracker();
+  t.feedTech(' INFO 10:33:38,261 [x] (fcd:1399) - [_FL_] fightId=7 Chacha noir breed : 1482 [-1] isControlledByAI=true obstacleId : 1 join the fight');
+  t.feed(C('10:33:40', 'Arkan lance le sort Flèche explosive'));
+  t.feed(C('10:33:41', 'Boss: -100 PV (Feu)'));
+  assert.strictEqual(t.snapshot().fighters.find((f) => f.name === 'Arkan').player, true);
+});

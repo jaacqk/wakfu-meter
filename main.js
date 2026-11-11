@@ -12,6 +12,8 @@ const { CLASSES } = require('./src/classes');
 const LOG_PATH =
   process.env.WAKFU_CHAT_LOG ||
   path.join(app.getPath('appData'), 'zaap', 'gamesLogs', 'wakfu', 'logs', 'wakfu_chat.log');
+// The game's technical log, next to it: lists the fighters (and their class) of each fight.
+const TECH_LOG_PATH = path.join(path.dirname(LOG_PATH), 'wakfu.log');
 const GUI_JAR = path.join(app.getPath('home'), 'AppData', 'Local', 'Ankama', 'Wakfu', 'contents', 'gui_jar', 'gui.jar');
 
 // Global shortcuts (work while the game has focus) -> command sent to the page.
@@ -144,6 +146,16 @@ app.whenReady().then(() => {
       status = s;
       send('status', s);
     }
+  );
+  // Optional: without it, players and classes are inferred from the chat log alone.
+  tailLines(
+    TECH_LOG_PATH,
+    (lines) => {
+      let changed = false;
+      for (const line of lines) changed = tracker.feedTech(line) || changed;
+      if (changed) send('fight', view());
+    },
+    () => {}
   );
 
   ipcMain.on('reset', () => {

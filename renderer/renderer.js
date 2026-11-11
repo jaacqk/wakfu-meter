@@ -141,11 +141,13 @@ function render() {
   $('unhide').textContent = `👁${hidden.size}`;
   $('reset').title = cumulOn ? 'Remettre le cumul à zéro' : 'Remettre le combat à zéro (Ctrl+Alt+R)';
 
-  // Remember detected classes so idle members keep their portrait.
+  // Remember classes so idle members keep their portrait: exact ones from the
+  // game's technical log first, otherwise guessed from spells.
   let learned = false;
-  for (const f of view ? view.fighters : []) {
-    if (f.player && f.breed && seenBreed[f.name] !== f.breed) {
-      seenBreed[f.name] = f.breed;
+  const known = { ...Object.fromEntries((view ? view.fighters : []).filter((f) => f.player && f.breed).map((f) => [f.name, f.breed])), ...(view?.breeds || {}) };
+  for (const [name, breed] of Object.entries(known)) {
+    if (seenBreed[name] !== breed) {
+      seenBreed[name] = breed;
       learned = true;
     }
   }

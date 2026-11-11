@@ -33,6 +33,10 @@ const OUT = /^(.+?) est hors-combat !$/;
 const XP = /^(.+?) : \+[\d\s]+ points d'XP/;
 const TURN_END = /secondes? reportées? pour le tour suivant/;
 const FIGHT_END = /^Combat terminé/;
+const CREATURE = /^(.+?): Invoque une créature du Gobgob/; // the next line names it
+// Technical log (wakfu.log): every fighter joining a fight, with its class.
+const TECH_TIME = /^\s*[A-Z]+ (\d\d):(\d\d):(\d\d),/;
+const TECH_JOIN = /\[_FL_\] fightId=(\d+) (.+?) breed : (\d+) \[-?\d+\] isControlledByAI=(true|false)/;
 const JOIN = /^(\d\d):(\d\d):(\d\d),(\d+) - \[Information \(jeu\)\] (.+) a rejoint le groupe$/;
 const LEAVE = /^\d\d:\d\d:\d\d,\d+ - \[Information \(jeu\)\] (?:Vous avez quitté le groupe|Vous ne faites désormais plus partie d'un groupe)/;
 
@@ -73,6 +77,7 @@ class FightTracker {
     this.roster = new Set(); // group members (the log never says when one leaves)
     this.lastSeen = new Map(); // member -> sequence number of their last sign of life
     this.seq = 0;
+    this.tech = null; // { fightId, time, players: Map name -> breed } from wakfu.log
     this.joinBurst = null; // { ms, names } of consecutive "a rejoint le groupe" lines
     this.cumulFights = []; // snapshots of fights finished since the last cumul reset
   }
@@ -86,6 +91,32 @@ class FightTracker {
     this.summonOwner = new Map(); // norm(summon) -> summoner
     this.effectOwner = new Map(); // norm(spell or state) -> fighter
     this.relations = new Map(); // "author\ntarget" -> { hit, help }
+    this.pendingCreature = null; // Osamodas whose Gobgob creature is named next
+    this.attachTech();
+  }
+
+  // Links the technical log's roster to the current fight if they match in time
+  // (the two logs are read separately, either may come first).
+  attachTech() {
+    const f = this.fight;
+    // A list without players is useless (e.g. only the summons of a fight
+    // whose start is in the previous, rotated log file).
+    if (!f || !this.tech?.players.size || f.tech === this.tech) return false;
+    if (this.tech.time < f.start - 120 || this.tech.time > f.last + 5) return false;
+    f.tech = this.tech;
+    return true;
+  }
+
+  // Feeds one line of wakfu.log; returns true when the fight state changed.
+  feedTech(line) {
+    const j = TECH_JOIN.exec(line);
+    if (!j) return false;
+    const t = TECH_TIME.exec(line);
+    const time = t ? +t[1] * 3600 + +t[2] * 60 + +t[3] : 0;
+    const [, fightId, name, breed, ai] = j;
+    if (this.tech?.fightId !== fightId) this.tech = { fightId, time, players: new Map() };
+    if (ai === 'false') this.tech.players.set(name, +breed);
+    return this.attachTech() || (ai === 'false' && this.fight?.tech === this.tech);
   }
 
   // Discards the current fight.
@@ -113,6 +144,12 @@ class FightTracker {
   // At most 6 members: those present in the fight first, then the most
   // recently seen (someone may have left without a log line).
   groupFor(fight) {
+    // The technical log lists who is really in the fight.
+    if (fight?.tech) {
+      const players = [...fight.tech.players.keys()];
+      const inGroup = players.filter((n) => this.roster.has(n));
+      return inGroup.length ? inGroup : players;
+    }
     const members = [...this.roster];
     if (members.length <= MAX_GROUP) return members;
     const rank = (n) => (fight?.fighters.has(n) ? Infinity : this.lastSeen.get(n) || 0);
@@ -232,6 +269,20 @@ class FightTracker {
     let seconds = +m[1] * 3600 + +m[2] * 60 + +m[3];
     const msg = m[4];
 
+    // A Gobgob creature is only named by the line right after its summoning.
+    if (this.fight && !this.ended) {
+      if (this.pendingCreature) {
+        const named = /^(.+?): /.exec(msg);
+        if (named && named[1] !== this.pendingCreature) this.summonOwner.set(norm(named[1]), this.pendingCreature);
+        this.pendingCreature = null;
+      }
+      const creature = CREATURE.exec(msg);
+      if (creature) {
+        this.pendingCreature = creature[1];
+        return false;
+      }
+    }
+
     if (FIGHT_END.test(msg)) {
       if (this.ended) return false;
       this.ended = true;
@@ -332,6 +383,9 @@ class FightTracker {
     for (const [name, f] of this.fight.fighters) {
       let e = Math.min(f.banked, 2);
       if (detectClass(f.spells)) e += 3;
+      // Controlled by a player per the technical log: strong if in the group
+      // (in PvP, opponents are players too).
+      if (this.fight.tech?.players.has(name)) e += this.roster.has(name) || !this.roster.size ? 4 : 1;
       const k = this.known.get(name);
       if (k === 'ally') e += 3;
       else if (k === 'enemy') e -= 3;
@@ -384,7 +438,8 @@ class FightTracker {
     for (const [name, e] of evidence) {
       const v = Math.abs(e) < 3 ? vote(outgoing.get(name)) : 0;
       const ally = settled.has(name) ? (v ? v > 0 : settled.get(name)) : false;
-      sides.set(name, { ally, player: ally && (e > 0 || this.roster.has(name)) });
+      const human = this.fight.tech ? this.fight.tech.players.has(name) : e > 0 || this.roster.has(name);
+      sides.set(name, { ally, player: ally && human });
     }
     return sides;
   }
@@ -397,10 +452,11 @@ class FightTracker {
       duration: this.fight.last - this.fight.start,
       ended: this.ended,
       roster: this.fight.roster || this.groupFor(this.fight),
+      breeds: this.fight.tech ? Object.fromEntries(this.fight.tech.players) : {}, // exact classes
       fighters: [...this.fight.fighters].map(([name, { spells, bySpell, hitSum, ...s }]) => ({
         name,
         ...sides.get(name),
-        breed: detectClass(spells),
+        breed: this.fight.tech?.players.get(name) || detectClass(spells),
         ...s,
         bySpell: [...bySpell.values()],
       })),
