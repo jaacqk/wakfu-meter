@@ -357,3 +357,6 @@ button.primary:hover { background: var(--damage); filter: brightness(1.1); color
 /* Settings in the help panel */
 .setting { display: flex; align-items: center; gap: 3px; color: var(--text); cursor: pointer; margin: 2px 0 4px; }
 .setting input { margin: 0; width: 9px; height: 9px; accent-color: var(--damage); }
+.culprits { color: var(--muted); margin-bottom: 4px; }
+.culprits b { color: var(--taken); }
+.failed-by { grid-column: 1 / -1; color: var(--muted); font-size: 9px; margin-top: 1px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }

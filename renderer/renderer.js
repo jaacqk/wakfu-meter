@@ -268,11 +268,28 @@ function renderChallenges() {
   if (!list.length) return [el('p', { className: 'facts', textContent: 'Aucun challenge terminé pour le moment. Les résultats apparaîtront ici au fil des combats.' })];
   const won = list.reduce((s, c) => s + c.won, 0);
   const total = list.reduce((s, c) => s + c.total, 0);
+  // Who failed them (deduced from the action right before each failure).
+  const blame = {};
+  for (const c of list) for (const [who, n] of Object.entries(c.by || {})) if (who !== '?') blame[who] = (blame[who] || 0) + n;
+  const culprits = Object.entries(blame).sort((a, b) => b[1] - a[1]);
+  const byText = (c) =>
+    Object.entries(c.by || {})
+      .sort((a, b) => b[1] - a[1])
+      .map(([who, n]) => `${who === '?' ? 'inconnu' : who}${n > 1 ? ` ×${n}` : ''}`)
+      .join(', ');
   const SHOWN = 8; // the most played ones, to keep the window small
   const more = list.length - SHOWN;
   list.length = Math.min(list.length, SHOWN);
   return [
     el('p', { className: 'facts', textContent: `Réussite globale : ${Math.round((won / total) * 100)}% (${won}/${total}) · conservé d'une session à l'autre` }),
+    culprits.length
+      ? el(
+          'p',
+          { className: 'culprits', title: "Déduit de l'action qui précède chaque échec dans le log du jeu." },
+          el('b', { textContent: 'Plus de ratés : ' }),
+          culprits.slice(0, 4).map(([who, n]) => `${who} (${n})`).join(' · ')
+        )
+      : '',
     el(
       'ol',
       { className: 'spells challenges' },
@@ -282,7 +299,8 @@ function renderChallenges() {
           {},
           el('span', { className: 'spell-name', textContent: c.name }),
           el('span', { className: 'spell-value', textContent: `✓${c.won} ✗${c.lost} · ${Math.round((c.won / c.total) * 100)}%` }),
-          el('div', { className: 'share' }, el('div', { style: `width:${(c.won / c.total) * 100}%` }))
+          el('div', { className: 'share' }, el('div', { style: `width:${(c.won / c.total) * 100}%` })),
+          c.lost && c.by ? el('div', { className: 'failed-by', textContent: `raté par ${byText(c)}` }) : ''
         )
       )
     ),

@@ -284,3 +284,27 @@ test('tracks KO count and biggest hit for the honour board, summed in the cumul'
   const a = t.cumulSnapshot().fighters.find((f) => f.name === 'Arkan');
   assert.deepStrictEqual({ kos: a.kos, maxHit: a.maxHit, spell: a.maxHitSpell }, { kos: 2, maxHit: 900, spell: 'Flèche explosive' });
 });
+
+test('blames a failed challenge on the player involved in the action right before', () => {
+  const t = new FightTracker();
+  const results = [];
+  t.onChallenge = (name, won, culprit) => results.push([name, won, culprit]);
+  const J = (time, msg) => `${time} - [Information (jeu)] ${msg}`;
+  [
+    C('22:35:59', 'Lou Garou lance le sort Canine'),
+    `22:36:01,340 - [Information (combat)] Boss: -289 PV (Eau)`,
+    J('22:36:01,341', 'Le challenge "Ordonné" a échoué.'), // after Lou Garou's hit
+    `22:38:02,218 - [Information (combat)] Boss lance le sort Coup`,
+    `22:38:02,300 - [Information (combat)] Bram: -1 245 PV (Feu)`,
+    `22:38:03,327 - [Information (combat)] Bram est KO !`,
+    J('22:38:03,343', 'Le challenge "Survie" a échoué.'), // Bram's KO
+    J('22:40:00,000', 'Le challenge "Nomade" est réussi.'),
+    J('22:50:00,000', 'Le challenge "Zen" a échoué.'), // nothing happened just before
+  ].forEach((l) => t.feed(l));
+  assert.deepStrictEqual(results, [
+    ['Ordonné', false, 'Lou Garou'],
+    ['Survie', false, 'Bram'],
+    ['Nomade', true, null],
+    ['Zen', false, null],
+  ]);
+});

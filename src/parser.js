@@ -38,6 +38,8 @@ const CREATURE = /^(.+?): Invoque une créature du Gobgob/; // the next line nam
 const TECH_TIME = /^\s*[A-Z]+ (\d\d):(\d\d):(\d\d),/;
 const TECH_JOIN = /\[_FL_\] fightId=(\d+) (.+?) breed : (\d+) \[-?\d+\] isControlledByAI=(true|false)/;
 const JOIN = /^(\d\d):(\d\d):(\d\d),(\d+) - \[Information \(jeu\)\] (.+) a rejoint le groupe$/;
+const CHALLENGE = /^\d\d:\d\d:\d\d,\d+ - \[Information \(jeu\)\] Le challenge "(.+)" (est réussi|a échoué)/;
+const STAMP = /^(\d\d):(\d\d):(\d\d),(\d+)/;
 const LEAVE = /^\d\d:\d\d:\d\d,\d+ - \[Information \(jeu\)\] (?:Vous avez quitté le groupe|Vous ne faites désormais plus partie d'un groupe)/;
 
 const MAX_GROUP = 6;
@@ -78,6 +80,8 @@ class FightTracker {
     this.lastSeen = new Map(); // member -> sequence number of their last sign of life
     this.seq = 0;
     this.tech = null; // { fightId, time, players: Map name -> breed } from wakfu.log
+    this.onChallenge = () => {}; // (name, won, culprit) for each challenge result
+    this.lastEvent = null; // { ms, actor }: the player most involved in the last fight action
     this.joinBurst = null; // { ms, names } of consecutive "a rejoint le groupe" lines
     this.cumulFights = []; // snapshots of fights finished since the last cumul reset
   }
@@ -246,6 +250,33 @@ class FightTracker {
     return true;
   }
 
+  // Cheap "is this a player?" check, usable on every line.
+  isPlayer(name) {
+    if (!name) return false;
+    const f = this.fight?.fighters.get(name);
+    return !!(
+      this.fight?.tech?.players.has(name) ||
+      this.roster.has(name) ||
+      this.known.get(name) === 'ally' ||
+      (f && detectClass(f.spells))
+    );
+  }
+
+  // Remembers who the last fight action was about, to blame a failed challenge
+  // (the log reports the failure right after the action, without a name).
+  noteEvent(ms, ...candidates) {
+    const prev = this.lastEvent;
+    // No player involved (e.g. a state ticking on a monster): keep the
+    // player of the action just before, if it was a moment ago.
+    const actor = candidates.find((n) => this.isPlayer(n)) || (prev && ms - prev.ms <= 2000 ? prev.actor : null);
+    this.lastEvent = { ms, actor };
+  }
+
+  culprit(ms) {
+    const e = this.lastEvent;
+    return e && e.actor && ms - e.ms >= 0 && ms - e.ms <= 2000 ? e.actor : null;
+  }
+
   // Records team evidence; returns true if it is new.
   learn(name, team) {
     if (this.known.get(name) === team) return false;
@@ -264,6 +295,15 @@ class FightTracker {
       return this.learn(g[1], 'ally') || isNew;
     }
     if (this.updateRoster(line)) return true;
+
+    const stamp = STAMP.exec(line);
+    const ms = stamp ? ((+stamp[1] * 60 + +stamp[2]) * 60 + +stamp[3]) * 1000 + +stamp[4] : 0;
+    const ch = CHALLENGE.exec(line);
+    if (ch) {
+      const won = ch[2] === 'est réussi';
+      this.onChallenge(ch[1], won, won ? null : this.culprit(ms));
+      return false;
+    }
 
     const m = LINE.exec(line);
     if (!m) return false;
@@ -298,6 +338,7 @@ class FightTracker {
       const f = this.fighter(match[1]);
       f.ko = true;
       f.kos++;
+      this.noteEvent(ms, match[1]);
       return true;
     }
     if ((match = REVIVED.exec(msg))) {
@@ -326,11 +367,15 @@ class FightTracker {
       if (TURN_END.test(msg)) {
         // Banking turn time follows a player's turn (almost never a monster's).
         if (this.caster) this.fighter(this.owner(this.caster)).banked++;
+        this.noteEvent(ms, this.caster && this.owner(this.caster)); // whose turn just ended
         this.caster = null;
         this.castSpell = null;
       }
-      else if ((state = STATE.exec(msg)) && this.caster) {
-        this.effectOwner.set(norm(state[2]), this.caster);
+      else {
+        if ((state = STATE.exec(msg)) && this.caster) this.effectOwner.set(norm(state[2]), this.caster);
+        // Any "Player: ..." line (e.g. turn-start effects) is about that player.
+        const about = /^(.+?): /.exec(msg);
+        if (about && this.isPlayer(about[1])) this.noteEvent(ms, about[1]);
       }
       return false;
     } else {
@@ -342,6 +387,7 @@ class FightTracker {
       // A turn = a run of consecutive casts by the same (non-summon) fighter.
       if (cast[1] !== this.caster && this.owner(cast[1]) === cast[1]) f.turns++;
       this.caster = cast[1];
+      this.noteEvent(ms, this.owner(cast[1]));
       this.castSpell = cast[2];
       this.effectOwner.set(norm(cast[2]), cast[1]);
       f.spells.set(cast[2], (f.spells.get(cast[2]) || 0) + 1);
@@ -358,6 +404,8 @@ class FightTracker {
     const victim = this.owner(target);
     const hit = hp && hp[2] === '-';
     const who = this.author(tail);
+    // The player who hit, else the player hit (even by an unknown author).
+    if (hit) this.noteEvent(ms, who, victim);
     const label = sourceTag(tail) || this.castSpell;
     // Damage taken counts even when its author is unknown, but not self-inflicted.
     if (hit && victim === target && who !== victim) this.add(victim, 'taken', parseNumber(hp[3]), label);
@@ -378,6 +426,7 @@ class FightTracker {
     } else {
       const n = parseNumber(hp ? hp[3] : armor[2]);
       if (who !== victim) this.relate(who, victim, 'help', n);
+      this.noteEvent(ms, who, victim);
       this.add(who, hp ? 'heal' : 'armor', n, label);
     }
     return true;

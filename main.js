@@ -45,14 +45,21 @@ let status = null;
 let portraits = {};
 let live = false; // false while the logs already on disk are being read at launch
 const settings = { launchWithWakfu: false, ...readJson('settings.json', {}) };
-const challenges = readJson('challenges.json', {}); // name -> { won, lost }, kept across sessions
+// name -> { won, lost, by: { player: failures } }, kept across sessions
+const challenges = readJson('challenges.json', {});
 const tracker = new FightTracker();
-const session = new SessionStats((name, won) => {
+const session = new SessionStats();
+tracker.onChallenge = (name, won, culprit) => {
   if (!live) return; // old log lines must not be counted again at each launch
   const c = (challenges[name] ||= { won: 0, lost: 0 });
   c[won ? 'won' : 'lost']++;
+  if (!won) {
+    c.by ||= {};
+    const who = culprit || '?';
+    c.by[who] = (c.by[who] || 0) + 1;
+  }
   writeJson('challenges.json', challenges);
-});
+};
 
 // Everything the overlay shows.
 function view() {
