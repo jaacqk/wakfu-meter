@@ -93,7 +93,7 @@ function createWindow() {
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   rememberPosition();
   win.webContents.on('did-finish-load', () => {
-    send('classes', { classes: CLASSES, portraits });
+    send('classes', { classes: CLASSES, portraits, version: app.getVersion() });
     send('fight', view());
     if (status) send('status', status);
   });
@@ -112,6 +112,10 @@ function registerShortcuts() {
     if (!ok) console.warn(`Raccourci déjà utilisé par une autre application : ${accelerator}`);
   }
 }
+
+// One overlay at a time: launching it again just shows the running one.
+if (!app.requestSingleInstanceLock()) app.exit(0);
+app.on('second-instance', () => win?.showInactive());
 
 app.whenReady().then(() => {
   portraits = loadPortraitUrls();

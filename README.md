@@ -33,6 +33,7 @@ passer devant le plein écran exclusif).
 | `⇅` / `⇆` | Disposition horizontale ou verticale (avec les noms) |
 | `◐` | Mode transparent ou normal |
 | `↺` | Remet le combat à zéro |
+| `?` | Fenêtre d'aide (affichée au démarrage, désactivable) et numéro de version |
 | `✕` au survol d'une carte | Masque ce joueur (`👁` pour réafficher) |
 | Coin bas-droit / Ctrl + molette | Agrandir ou réduire (tout le contenu suit) |
 | Glisser l'en-tête | Déplacer (la position est mémorisée) |

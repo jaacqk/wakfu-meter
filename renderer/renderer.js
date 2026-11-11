@@ -19,7 +19,8 @@ let classes = [];
 let portraits = {};
 let stat = 'damage';
 let cumulOn = false;
-let panelFor = null; // { kind: 'detail' | 'picker', name }
+let panelFor = null; // { kind: 'detail' | 'picker' | 'welcome', name }
+let version = '';
 
 // Per-viewer preferences, kept between sessions.
 function load(key, fallback) {
@@ -176,7 +177,7 @@ function render() {
 
 // --- Detail / class picker panel (replaces the cards while open)
 function openPanel(kind, name) {
-  if (!panelFor) panel.style.width = `${Math.max(180, main.offsetWidth)}px`;
+  if (!panelFor) panel.style.width = `${Math.max(kind === 'welcome' ? 280 : 180, main.offsetWidth)}px`;
   panelFor = { kind, name };
   main.hidden = true;
   panel.hidden = false;
@@ -201,6 +202,7 @@ function panelBar(title, ...buttons) {
 function renderPanel() {
   const { kind, name } = panelFor;
   if (kind === 'picker') return renderPicker(name);
+  if (kind === 'welcome') return renderWelcome();
 
   const f = shown()?.fighters.find((x) => x.name === name);
   const classBtn = el('button', { textContent: className(name) || 'Classe', title: 'Changer la classe' });
@@ -235,6 +237,47 @@ function renderPanel() {
           )
         )
       : el('p', { className: 'facts', textContent: 'Aucun détail pour cet onglet.' })
+  );
+}
+
+// --- Welcome / help panel, shown at launch unless turned off.
+const FEATURES = [
+  ['Infligés · Reçus · Soins · Armure', 'les quatre onglets, une carte par joueur du groupe'],
+  ['Clic sur une carte', 'détail par sort, DPT (dégâts par tour), choix de la classe'],
+  ['Σ', 'cumul des combats, pratique pour tout un donjon'],
+  ['📋', 'copie le récapitulatif à coller sur Discord'],
+  ['🖱', "clics traversants : seul l'en-tête reste cliquable"],
+  ['⇅  ◐', 'disposition horizontale / verticale, mode transparent / normal'],
+  ['Coin ◢ ou Ctrl + molette', "agrandir ou réduire ; glisser l'en-tête pour déplacer"],
+  ['Ctrl+Alt+W · C · T · R', 'afficher/masquer · clics traversants · onglet suivant · remise à zéro'],
+];
+
+function renderWelcome() {
+  const hide = el('input', { type: 'checkbox', checked: load('hideWelcome', false) });
+  hide.onchange = () => save('hideWelcome', hide.checked);
+  const go = el('button', { className: 'primary', textContent: "C'est parti !" });
+  go.onclick = closePanel;
+  panel.replaceChildren(
+    panelBar('Bienvenue dans Wakfu Meter'),
+    el(
+      'p',
+      { className: 'welcome-intro' },
+      'Suis en direct les dégâts, soins et armure de ton groupe pendant tes combats. ',
+      "L'overlay lit le log que le jeu écrit sur ton PC : il ne touche pas au jeu."
+    ),
+    el(
+      'ul',
+      { className: 'features' },
+      ...FEATURES.map(([key, text]) => el('li', {}, el('b', { textContent: key }), ` ${text}`))
+    ),
+    el('p', { className: 'facts', textContent: 'Jeu en français, en mode fenêtré ou plein écran fenêtré.' }),
+    el(
+      'div',
+      { className: 'welcome-footer' },
+      el('label', {}, hide, ' Ne plus afficher au démarrage'),
+      el('span', { className: 'version', textContent: version ? `v${version}` : '' }),
+      go
+    )
   );
 }
 
@@ -387,6 +430,7 @@ function reset() {
 }
 $('reset').onclick = reset;
 $('close').onclick = () => window.meter.close();
+$('help').onclick = () => (panelFor?.kind === 'welcome' ? closePanel() : openPanel('welcome'));
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && panelFor) closePanel(); });
 
 window.meter.onCommand((command) => {
@@ -394,11 +438,18 @@ window.meter.onCommand((command) => {
   else if (command === 'next-tab') setStat(STATS[(STATS.indexOf(stat) + 1) % STATS.length]);
   else if (command === 'reset') reset();
 });
-window.meter.onClasses((d) => { classes = d.classes; portraits = d.portraits; render(); });
+window.meter.onClasses((d) => {
+  classes = d.classes;
+  portraits = d.portraits;
+  version = d.version;
+  $('help').title = `Aide et fonctionnalités · Wakfu Meter v${version}`;
+  render();
+});
 window.meter.onFight((d) => {
   data = d;
   render();
 });
 window.meter.onStatus((d) => { status = d; render(); });
 render();
+if (!load('hideWelcome', false)) openPanel('welcome');
 updateMouse();
