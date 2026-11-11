@@ -85,8 +85,9 @@ button .ico { font-size: 11px; }
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  gap: 1px;
+  gap: 2px;
   padding: 4px 2px;
   background: var(--bar);
   border-right: 1px solid var(--line);
@@ -126,7 +127,7 @@ header {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 1px;
+  gap: 2px;
   padding: 3px 4px;
   border-bottom: 1px solid var(--line);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), transparent);
@@ -136,7 +137,15 @@ header {
 }
 header > * { position: relative; z-index: 1; }
 header button, header nav { -webkit-app-region: no-drag; }
-header > button { flex-shrink: 0; padding: 1px 3px; }
+header > button {
+  flex-shrink: 0;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  justify-content: center;
+}
+header > button .ico { font-size: 11px; }
+header > #cumul, header > #unhide { width: auto; padding: 0 4px; font-size: 11px; }
 header > .scenery {
   position: absolute;
   z-index: 0;
@@ -153,18 +162,7 @@ header > .scenery {
 #tabs { display: flex; flex-shrink: 0; }
 #tabs button { position: relative; padding: 1px 4px; border-radius: 0; font-size: 10.5px; }
 #tabs button:hover { background: none; }
-#tabs button.active { color: var(--text); font-weight: 600; }
-#tabs button.active::after {
-  content: "";
-  position: absolute;
-  left: 4px;
-  right: 4px;
-  bottom: -2px;
-  height: 1.5px;
-  border-radius: 1px;
-  background: var(--color);
-  box-shadow: 0 0 4px var(--color);
-}
+#tabs button.active { color: var(--color); font-weight: 600; text-shadow: 0 0 6px color-mix(in srgb, var(--color) 55%, transparent); }
 
 #module-title {
   flex: 1;

@@ -139,7 +139,8 @@ function render() {
   document.body.classList.toggle('opaque', opaque);
   document.body.classList.toggle('vertical', vertical);
   document.body.style.setProperty('--color', `var(--${stat})`);
-  $('layout').textContent = vertical ? '⇆' : '⇅';
+  // the icon shows the layout the button switches to
+  $('layout').replaceChildren(icon(vertical ? 'columns' : 'stack'));
   $('through').classList.toggle('on', clickThrough);
   $('cumul').classList.toggle('on', cumulOn);
   $('unhide').hidden = hidden.size === 0;
