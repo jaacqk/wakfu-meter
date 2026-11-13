@@ -3,20 +3,18 @@
 const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
-const { app, BrowserWindow, ipcMain, nativeImage, globalShortcut, clipboard, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, nativeImage, globalShortcut, clipboard, screen, dialog } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const { FightTracker } = require('./src/parser');
 const { SessionStats } = require('./src/session');
 const { tailLines } = require('./src/tail');
 const { loadPortraits } = require('./src/portraits');
 const { CLASSES } = require('./src/classes');
+const { findWakfuFiles, searchRoots } = require('./src/logpath');
 
-const LOG_PATH =
-  process.env.WAKFU_CHAT_LOG ||
-  path.join(app.getPath('appData'), 'zaap', 'gamesLogs', 'wakfu', 'logs', 'wakfu_chat.log');
-// The game's technical log, next to it: lists the fighters (and their class) of each fight.
-const TECH_LOG_PATH = path.join(path.dirname(LOG_PATH), 'wakfu.log');
-const GUI_JAR = path.join(app.getPath('home'), 'AppData', 'Local', 'Ankama', 'Wakfu', 'contents', 'gui_jar', 'gui.jar');
+// Default locations (Ankama launcher), used when nothing better is found.
+const DEFAULT_LOG = path.join(app.getPath('appData'), 'zaap', 'gamesLogs', 'wakfu', 'logs', 'wakfu_chat.log');
+const DEFAULT_GUI_JAR = path.join(app.getPath('home'), 'AppData', 'Local', 'Ankama', 'Wakfu', 'contents', 'gui_jar', 'gui.jar');
 
 // Global shortcuts (work while the game has focus) -> command sent to the page.
 const SHORTCUTS = {
@@ -71,17 +69,31 @@ function send(channel, data) {
 }
 
 // Class portraits as data URLs, read from the local game install.
-function loadPortraitUrls() {
+function loadPortraitUrls(guiJar) {
   try {
     const urls = {};
-    for (const [key, { width, height, bgra }] of Object.entries(loadPortraits(GUI_JAR))) {
+    for (const [key, { width, height, bgra }] of Object.entries(loadPortraits(guiJar))) {
       urls[key] = nativeImage.createFromBitmap(bgra, { width, height }).toDataURL();
     }
     return urls;
   } catch (err) {
-    console.warn(`Portraits indisponibles (${GUI_JAR}) : ${err.message}`);
+    console.warn(`Portraits indisponibles (${guiJar}) : ${err.message}`);
     return {};
   }
+}
+
+function sendClasses() {
+  send('classes', { classes: CLASSES, portraits, version: app.getVersion() });
+}
+
+// Where the game writes its logs depends on how it was installed: a file
+// chosen by hand wins, else the newest one found on this PC. Without any,
+// the search is retried until the game has written one.
+async function locateWakfu() {
+  const found = await findWakfuFiles(await searchRoots());
+  const exists = (p) => p && fs.existsSync(p);
+  const chosen = process.env.WAKFU_CHAT_LOG || (exists(settings.logPath) ? settings.logPath : null);
+  return { chatLog: chosen || found.chatLog, guiJar: found.guiJar || DEFAULT_GUI_JAR };
 }
 
 // Window position, remembered between launches.
@@ -124,7 +136,7 @@ function createWindow(show) {
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   rememberPosition();
   win.webContents.on('did-finish-load', () => {
-    send('classes', { classes: CLASSES, portraits, version: app.getVersion() });
+    sendClasses();
     send('settings', settings);
     send('fight', view());
     if (status) send('status', status);
@@ -180,20 +192,15 @@ async function watchWakfu() {
 if (!app.requestSingleInstanceLock()) app.exit(0);
 app.on('second-instance', () => win?.showInactive());
 
-app.whenReady().then(() => {
-  portraits = loadPortraitUrls();
-  createWindow(!STARTED_AT_LOGIN); // at login, wait for Wakfu before showing up
-  registerShortcuts();
-  applyLaunchSetting();
-  watchWakfu();
-  // Installed app: look for a newer release on GitHub; it downloads in the
-  // background and installs when the app quits (with a Windows notification).
-  if (app.isPackaged) {
-    autoUpdater.checkForUpdatesAndNotify().catch((err) => console.warn(`Mise à jour impossible : ${err.message}`));
-  }
+function setStatus(s) {
+  status = s;
+  send('status', s);
+}
 
+// Reads the chat log (and the technical log next to it) as it grows.
+function follow(chatLog) {
   tailLines(
-    LOG_PATH,
+    chatLog,
     (lines) => {
       let changed = false;
       for (const line of lines) {
@@ -211,14 +218,12 @@ app.whenReady().then(() => {
       }
       if (changed) send('fight', view());
     },
-    (s) => {
-      status = s;
-      send('status', s);
-    }
+    setStatus
   );
-  // Optional: without it, players and classes are inferred from the chat log alone.
+  // Optional: lists the fighters (and their class) of each fight; without it,
+  // players and classes are inferred from the chat log alone.
   tailLines(
-    TECH_LOG_PATH,
+    path.join(path.dirname(chatLog), 'wakfu.log'),
     (lines) => {
       let changed = false;
       for (const line of lines) changed = tracker.feedTech(line) || changed;
@@ -226,6 +231,24 @@ app.whenReady().then(() => {
     },
     () => {}
   );
+}
+
+function waitForLog(chatLog) {
+  if (chatLog) return follow(chatLog);
+  setStatus({ ok: false, path: null });
+  setTimeout(async () => waitForLog((await locateWakfu()).chatLog), 10000);
+}
+
+app.whenReady().then(async () => {
+  createWindow(!STARTED_AT_LOGIN); // at login, wait for Wakfu before showing up
+  registerShortcuts();
+  applyLaunchSetting();
+  watchWakfu();
+  // Installed app: look for a newer release on GitHub; it downloads in the
+  // background and installs when the app quits (with a Windows notification).
+  if (app.isPackaged) {
+    autoUpdater.checkForUpdatesAndNotify().catch((err) => console.warn(`Mise à jour impossible : ${err.message}`));
+  }
 
   ipcMain.on('reset', () => {
     tracker.reset();
@@ -250,6 +273,20 @@ app.whenReady().then(() => {
     applyLaunchSetting();
     send('settings', settings);
   });
+  // The log file chosen by hand; the app restarts to read it from scratch.
+  ipcMain.on('choose-log', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+      title: 'Choisir le log de chat de Wakfu (wakfu_chat.log)',
+      defaultPath: status?.path || DEFAULT_LOG,
+      filters: [{ name: 'Log de chat Wakfu', extensions: ['log'] }],
+      properties: ['openFile'],
+    });
+    if (canceled || !filePaths[0]) return;
+    settings.logPath = filePaths[0];
+    writeJson('settings.json', settings);
+    app.relaunch();
+    app.exit(0);
+  });
   ipcMain.on('copy', (_e, text) => clipboard.writeText(String(text)));
   // Click-through: the page asks to ignore mouse events except over its
   // interactive parts; 'forward' keeps mouse moves coming to detect those.
@@ -263,6 +300,11 @@ app.whenReady().then(() => {
     const [w, h] = win.getContentSize();
     if (w !== width || h !== height) win.setContentSize(Math.max(40, width), Math.max(20, height));
   });
+
+  const { chatLog, guiJar } = await locateWakfu();
+  portraits = loadPortraitUrls(guiJar);
+  sendClasses();
+  waitForLog(chatLog);
 });
 
 app.on('will-quit', () => globalShortcut.unregisterAll());

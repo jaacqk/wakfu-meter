@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('meter', {
   resetSession: () => ipcRenderer.send('reset-session'),
   resetChallenges: () => ipcRenderer.send('reset-challenges'),
   setLaunchWithWakfu: (on) => ipcRenderer.send('set-launch-with-wakfu', on),
+  chooseLog: () => ipcRenderer.send('choose-log'),
   copy: (text) => ipcRenderer.send('copy', text),
   ignoreMouse: (ignore) => ipcRenderer.send('ignore-mouse', ignore),
   close: () => ipcRenderer.send('close'),

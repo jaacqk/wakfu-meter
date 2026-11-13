@@ -211,7 +211,7 @@ function render() {
     : '';
 
   empty.hidden = list.length > 0;
-  if (status && !status.ok) empty.textContent = `Log introuvable : ${status.path}`;
+  if (status && !status.ok) empty.textContent = 'Log de Wakfu introuvable : lance le jeu, ou choisis le fichier dans l’aide (?).';
   else empty.textContent = cumulOn ? 'Aucun combat dans le cumul.' : "En attente d'un combat…";
 
   cards.replaceChildren(...list.map((s, i) => card(s, i + 1, max, total, live)));
@@ -492,6 +492,9 @@ function renderWelcome() {
   go.onclick = closePanel;
   const withWakfu = el('input', { type: 'checkbox', checked: settingsState.launchWithWakfu });
   withWakfu.onchange = () => window.meter.setLaunchWithWakfu(withWakfu.checked);
+  const change = el('button', { textContent: 'Changer…', title: 'Choisir le fichier wakfu_chat.log' });
+  change.onclick = () => window.meter.chooseLog();
+  const logPath = status?.ok ? status.path : 'introuvable';
   panel.replaceChildren(
     panelBar('Bienvenue dans Wakfu Meter'),
     el(
@@ -511,6 +514,12 @@ function renderWelcome() {
       { className: 'setting', title: "Démarre avec Windows en arrière-plan, s'affiche quand Wakfu se lance et se masque quand il se ferme." },
       withWakfu,
       ' Lancer automatiquement avec Wakfu'
+    ),
+    el(
+      'div',
+      { className: 'setting log-path' },
+      el('span', { className: 'path', textContent: `Log : ${logPath}`, title: logPath }),
+      change
     ),
     el(
       'div',
@@ -706,7 +715,11 @@ window.meter.onFight((d) => {
   data = d;
   render();
 });
-window.meter.onStatus((d) => { status = d; render(); });
+window.meter.onStatus((d) => {
+  status = d;
+  render();
+  if (panelFor?.kind === 'welcome') renderPanel();
+});
 window.meter.onSettings((s) => {
   settingsState = s;
   if (panelFor?.kind === 'welcome') renderPanel();
