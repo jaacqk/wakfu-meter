@@ -1,7 +1,7 @@
 {
   "name": "wakfu-meter",
   "productName": "Wakfu Meter",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Overlay transparent affichant les dégâts, soins et armure par combattant à partir du log de chat de Wakfu.",
   "main": "main.js",
   "private": true,
