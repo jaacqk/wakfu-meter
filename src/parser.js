@@ -44,8 +44,14 @@ const STAMP = /^(\d\d):(\d\d):(\d\d),(\d+)/;
 const LEAVE = /^\d\d:\d\d:\d\d,\d+ - \[Information \(jeu\)\] (?:Vous avez quitté le groupe|Vous ne faites désormais plus partie d'un groupe)/;
 
 const MAX_GROUP = 6;
+// Seconds without any fight action after which a fight is over, even if its
+// end is missing from the log (game closed or crashed mid-fight).
+const STALE = 5 * 60;
 const ELEMENTS = new Set(['feu', 'eau', 'terre', 'air', 'neutre', 'lumière', 'stasis']);
 const META = new Set(['parade !', 'critiques', 'critique']);
+// Damage procs named after neither a spell nor a state: the state that
+// triggers them, whose applier is their author.
+const PROC_STATE = new Map([['tétatoxine', 'toxines']]); // Sadida
 
 // "Pulsar I" -> "pulsar", "Séisme niveau 2" / "Séisme - Critique" -> "séisme"
 function norm(name) {
@@ -139,6 +145,14 @@ class FightTracker {
     this.ended = true;
   }
 
+  // After reading the log already on disk: forgets its last fight unless it is
+  // still going on (now = seconds since midnight), so no past stats show up.
+  forgetPast(now) {
+    if (!this.fight) return;
+    const idle = (((now - this.fight.last) % 86400) + 86400) % 86400;
+    if (this.ended || idle > STALE) this.reset();
+  }
+
   // Files the current fight into the cumul, once.
   closeFight() {
     if (!this.fight || this.fight.closed) return;
@@ -188,14 +202,16 @@ class FightTracker {
     return name;
   }
 
+  // Who is behind a named effect (summon, spell, state or proc), if known.
+  sourceOwner(src) {
+    const key = norm(src);
+    const by = this.summonOwner.get(key) || this.effectOwner.get(key) || this.effectOwner.get(PROC_STATE.get(key));
+    return by ? this.owner(by) : null;
+  }
+
   author(tail) {
     const src = sourceTag(tail);
-    if (src) {
-      const key = norm(src);
-      if (this.summonOwner.has(key)) return this.owner(this.summonOwner.get(key));
-      if (this.effectOwner.has(key)) return this.owner(this.effectOwner.get(key));
-    }
-    return this.caster ? this.owner(this.caster) : null;
+    return (src && this.sourceOwner(src)) || (this.caster ? this.owner(this.caster) : null);
   }
 
   fighter(name) {
@@ -371,8 +387,12 @@ class FightTracker {
 
     let cast, summon, hp, armor, state;
     if ((cast = CAST.exec(msg)) || (summon = SUMMON.exec(msg)) || (hp = HP.exec(msg)) || (armor = ARMOR.exec(msg))) {
+      if (!this.ended) {
+        const at = seconds < this.fight.last ? seconds + 86400 : seconds; // past midnight
+        if (at - this.fight.last > STALE) this.ended = true;
+        else seconds = at;
+      }
       if (this.ended) this.newFight(seconds);
-      if (seconds < this.fight.last) seconds += 86400; // past midnight
       this.fight.last = seconds;
     } else if (this.fight && !this.ended) {
       if (TURN_END.test(msg)) {
@@ -383,7 +403,18 @@ class FightTracker {
         this.castSpell = null;
       }
       else {
-        if ((state = STATE.exec(msg)) && this.caster) this.effectOwner.set(norm(state[2]), this.caster);
+        if ((state = STATE.exec(msg))) {
+          // A state from a named effect ("Toxines (+153 Niv.) (Terrain infecté)")
+          // belongs to that effect's author, even when it lands during someone
+          // else's turn (a monster walking on the Sadida's infected terrain).
+          const src = sourceTag(msg.slice(state[0].length));
+          const known = src && this.sourceOwner(src);
+          const by = known || this.caster;
+          if (by) {
+            this.effectOwner.set(norm(state[2]), by);
+            if (src && !known && !this.fight.fighters.has(src)) this.effectOwner.set(norm(src), by);
+          }
+        }
         // Any "Player: ..." line (e.g. turn-start effects) is about that player.
         const about = /^(.+?): /.exec(msg);
         if (about && this.isPlayer(about[1])) this.noteEvent(ms, about[1]);

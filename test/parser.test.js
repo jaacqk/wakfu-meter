@@ -327,3 +327,65 @@ test("credits summons' damage to their summoner (Sadida dolls, placed summons)",
   assert.strictEqual(by['La Sacrifiée'], undefined);
   assert.strictEqual(by.Microbot, undefined);
 });
+
+test('at launch, a fight from the log already on disk is shown only if still going on', () => {
+  const at = (s) => 10 * 3600 + s; // seconds since midnight, from 10:00:00
+  const feedFight = (t, ended) => {
+    t.feed(C('10:00:00', 'Yami lance le sort Graine'));
+    t.feed(C('10:00:01', 'Boss: -100 PV (Air)'));
+    if (ended) t.feed(C('10:00:02', 'Combat terminé, cliquez ici pour rouvrir l\'écran de fin de combat.'));
+  };
+  let t = new FightTracker();
+  feedFight(t, true);
+  t.forgetPast(at(5));
+  assert.strictEqual(t.snapshot(), null);
+
+  t = new FightTracker();
+  feedFight(t, false);
+  t.forgetPast(at(30));
+  assert.strictEqual(t.snapshot().fighters.find((f) => f.name === 'Yami').damage, 100);
+  t.forgetPast(at(3600)); // its end is missing from the log, but it is long over
+  assert.strictEqual(t.snapshot(), null);
+});
+
+test('a fight whose end is missing from the log does not swallow the next one', () => {
+  const t = new FightTracker();
+  t.feed(C('10:00:00', 'Yami lance le sort Graine'));
+  t.feed(C('10:00:01', 'Boss: -100 PV (Air)'));
+  // Game closed mid-fight: no "Combat terminé". Next fight an hour later.
+  t.feed(C('11:00:00', 'Yami lance le sort Graine'));
+  t.feed(C('11:00:01', 'Boss: -40 PV (Air)'));
+  const s = t.snapshot();
+  assert.strictEqual(s.start, 11 * 3600);
+  assert.strictEqual(s.fighters.find((f) => f.name === 'Yami').damage, 40);
+  assert.strictEqual(t.cumulSnapshot().fights, 2);
+});
+
+// Lines taken from a real wakfu_chat.log.
+test("credits the Sadida's poison (Maudit, Tétatoxine) even on a monster's turn", () => {
+  const t = new FightTracker();
+  [
+    C('12:19:02', 'Yami lance le sort Graine'),
+    C('12:19:03', 'Yami: Invoque un(e) Arbre de Sadida '),
+    C('12:19:03', 'Astrompe: Toxines (+153 Niv.) (Terrain infecté)'),
+    C('12:19:04', 'Yami lance le sort Relent Boisé (Critiques)'),
+    C('12:19:04', 'Astrompe: -6 509 PV (Air)'),
+    C('12:19:04', 'Astrompe: Maudit (+95 Niv.)'),
+    C('12:19:05', '39 secondes reportées pour le tour suivant.'),
+    // The monster walks on the infected terrain during its own turn.
+    C('12:20:18', 'Mâle luné lance le sort Astéroïdes (Critiques)'),
+    C('12:20:21', 'Mâle luné: Toxines (+204 Niv.) (Terrain infecté)'),
+    C('12:20:22', 'Mâle luné lance le sort Impact incisif'),
+    C('12:20:22', 'Kun: -4 064 PV (Terre)'),
+    C('12:20:23', '20 secondes reportées pour le tour suivant.'),
+    // Turn-start procs: no caster at all, then a monster casting.
+    C('12:20:53', 'Astrompe: -8 219 PV (Lumière) (Air) (Tétatoxine)'),
+    C('12:20:53', 'Astrompe: -6 182 PV (Air) (Maudit)'),
+    C('12:21:07', 'Chimère veilleuse lance le sort Pouvoir antique (Critiques)'),
+    C('12:21:09', 'Mâle luné: -7 642 PV  (Lumière) (Air) (Tétatoxine)'),
+  ].forEach((l) => t.feed(l));
+  const by = Object.fromEntries(t.snapshot().fighters.map((f) => [f.name, f]));
+  assert.strictEqual(by.Yami.damage, 6509 + 8219 + 6182 + 7642);
+  assert.strictEqual(by['Chimère veilleuse']?.damage || 0, 0);
+  assert.strictEqual(by.Yami.bySpell.find((e) => e.name === 'Tétatoxine').damage, 8219 + 7642);
+});

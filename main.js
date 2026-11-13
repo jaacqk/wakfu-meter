@@ -201,8 +201,10 @@ app.whenReady().then(() => {
         changed = session.feed(line) || changed;
       }
       // The cumul and the session start at launch, not with the old fights
-      // already in the log.
+      // already in the log; only a fight still going on is shown.
       if (!live) {
+        const now = new Date();
+        tracker.forgetPast(now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds());
         tracker.resetCumul();
         session.reset();
         live = true;

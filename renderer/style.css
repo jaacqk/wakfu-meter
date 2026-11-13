@@ -38,9 +38,14 @@ html, body {
   user-select: none;
   text-shadow: var(--shadow);
 }
+/* A root without a background of its own gets the body's, painted over the
+   whole (square) window; this invisible one keeps the body's rounded corners. */
+html { background-image: linear-gradient(transparent, transparent); }
 
-/* The window itself: gradient, teal frame and inner glow */
+/* The window itself: gradient, teal frame and inner glow. Positioned so that
+   its rounded corners also clip #app (absolutely positioned). */
 body {
+  position: relative;
   background: linear-gradient(175deg, var(--bg-top), var(--bg-bottom));
   border-radius: 8px;
   box-shadow: inset 0 0 0 1px var(--frame), inset 0 0 10px var(--glow);
@@ -195,7 +200,7 @@ header > .scenery {
 }
 
 /* --- Combat: fighter cards ----------------------------------------------- */
-main { padding: 3px 4px 4px; } /* same gap above and below the cards (+1px for the frame) */
+main { padding: 3px 4px 4px; flex: 1; display: flex; flex-direction: column; } /* same gap above and below the cards (+1px for the frame) */
 #cards { list-style: none; padding: 0; display: flex; gap: 4px; }
 
 .card {
@@ -290,7 +295,7 @@ body.vertical .card .value { margin: 0; text-align: right; }
 body.vertical .card .share { grid-column: 1 / -1; margin: 2px 0 0; height: 3px; }
 body.vertical .card.ko .portrait::after { font-size: 6px; inset: auto 0 1px; text-align: center; }
 
-#empty { padding: 8px; text-align: center; color: var(--muted); }
+#empty { margin: auto 0; padding: 8px; text-align: center; color: var(--muted); } /* centred in the height the side bar gives */
 
 /* --- Module views and panels ---------------------------------------------- */
 #view, #panel { padding: 4px 6px 12px; text-shadow: none; }
